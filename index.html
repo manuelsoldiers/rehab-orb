@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b111a" />
+  <title>Rehab Orb</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <video id="camera" playsinline muted></video>
+  <canvas id="stage"></canvas>
+
+  <div id="hud">
+    <div id="topbar">
+      <span id="brand">Rehab Orb <em id="mode"></em></span>
+      <span class="spacer"></span>
+      <button id="btn-ar" class="pill" hidden>Enter AR</button>
+      <button id="btn-camera" class="pill" hidden>Camera</button>
+    </div>
+    <div id="bottombar">
+      <div id="heard" aria-live="polite"></div>
+      <form id="ask" autocomplete="off">
+        <button type="button" id="btn-mic" class="round" aria-label="Voice on or off" title="Voice on / off">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <input id="say" type="text" inputmode="text" enterkeyhint="send" placeholder="Ask: “six-minute walk test”, “start”, “lap”, “what happened here”" />
+        <button type="submit" class="pill">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="intro">
+    <div class="sheet">
+      <h1>Rehab Orb</h1>
+      <p class="lead">A voice orb that stands next to you during a clinical test: it keeps the time, says the standard phrases, counts, and shows the result as a chart you can point at.</p>
+      <div class="actions">
+        <button id="go-ar" class="primary" hidden>Enter AR</button>
+        <button id="go-camera" hidden>Camera view</button>
+        <button id="go-preview">Preview on this screen</button>
+      </div>
+      <p id="support" class="small"></p>
+      <p class="small">Decision support for trained professionals. Not a medical device. Patient values stay in memory on this device and are never stored or sent.</p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

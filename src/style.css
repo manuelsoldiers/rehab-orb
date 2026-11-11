@@ -1,0 +1,43 @@
+:root { color-scheme: dark; --ink: #f4f7fb; --dim: #93a3b8; --card: rgba(13, 21, 33, 0.86); --edge: rgba(160, 190, 230, 0.2); --cyan: #67c9ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f15; color: var(--ink);
+  font: 500 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+/* Preview backdrop: a dim room, so the orb and the glass card read the way they do over a camera feed. */
+body.preview { background:
+  radial-gradient(120% 80% at 70% 18%, rgba(120, 96, 70, 0.34), transparent 60%),
+  radial-gradient(90% 70% at 12% 78%, rgba(60, 74, 96, 0.30), transparent 65%),
+  linear-gradient(180deg, #1b1712 0%, #100f0f 55%, #0a0b0e 100%); }
+#camera { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+body.camera #camera { display: block; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+#hud > * { pointer-events: auto; }
+#topbar { display: flex; align-items: center; gap: 8px; }
+#brand { font-weight: 700; letter-spacing: 0.02em; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+#brand em { font-style: normal; font-weight: 500; color: var(--dim); margin-left: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; }
+.spacer { flex: 1; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.pill { background: var(--card); border: 1px solid var(--edge); border-radius: 999px; padding: 9px 16px; font-weight: 600; backdrop-filter: blur(10px); }
+.pill:hover { border-color: var(--cyan); }
+.round { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--card); border: 1px solid var(--edge); }
+.round.on { background: #12d6a0; color: #06231b; border-color: #12d6a0; }
+.round:disabled { opacity: 0.4; cursor: not-allowed; }
+#bottombar { width: min(760px, 100%); margin: 0 auto; }
+#heard { min-height: 20px; margin: 0 6px 6px; font-size: 13px; color: var(--dim); text-shadow: 0 1px 6px rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ask { display: flex; gap: 8px; align-items: center; }
+#say { flex: 1; min-width: 0; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge); background: var(--card); color: var(--ink); font: inherit; outline: none; backdrop-filter: blur(10px); }
+#say:focus { border-color: var(--cyan); }
+#say::placeholder { color: #6f7f95; }
+
+#intro { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(6, 9, 14, 0.72); backdrop-filter: blur(6px); z-index: 5; }
+#intro[hidden] { display: none; }
+.sheet { width: min(520px, 100%); background: var(--card); border: 1px solid var(--edge); border-radius: 24px; padding: 28px; }
+.sheet h1 { margin: 0 0 10px; font-size: 34px; letter-spacing: 0.01em; }
+.lead { margin: 0 0 20px; color: #cfd8e4; font-size: 17px; }
+.actions { display: grid; gap: 10px; margin-bottom: 16px; }
+.actions button { padding: 14px 18px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(30, 42, 60, 0.92); font-weight: 600; font-size: 16px; text-align: left; }
+.actions button.primary { background: var(--cyan); color: #06121e; border-color: var(--cyan); }
+.small { margin: 8px 0 0; font-size: 13px; color: var(--dim); }

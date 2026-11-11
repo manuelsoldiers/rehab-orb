@@ -1,0 +1,18 @@
+Rehab Orb — third-party material
+
+three.js (r187) — MIT License — https://threejs.org
+  3D rendering and WebXR session handling.
+
+Vite — MIT License — https://vite.dev
+  Development server and build (not shipped in the built app).
+
+Fonts: the device's own system font. No font files are shipped.
+
+Everything on screen is drawn in code: the orb is a procedural shader written for this project,
+the panels are drawn on a canvas. No images, icons, sounds or data from other apps or videos.
+
+The reference reel studied in docs/REEL-ANALYSIS.md was used for its interaction grammar only.
+None of its frames, text, graphics or data are in this repository.
+
+Clinical sources are listed in FACTS.md. The Borg scales are © Gunnar Borg; the scale shown here
+is a simplified redrawing for teaching.

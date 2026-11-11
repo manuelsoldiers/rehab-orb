@@ -1,0 +1,136 @@
+import * as THREE from 'three';
+import { Kit, W } from '../ui/kit.js';
+
+export const PANEL_W = 0.8;                 // metres
+const PX = PANEL_W / W;                     // metres per canvas pixel
+const MAX_H = 1500;
+
+function makeLayer() {
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = MAX_H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  return { canvas, ctx, tex, mat, mesh };
+}
+
+// A world-anchored card. The view draws on two canvases (chrome + data); the panel shows the
+// top `height` pixels of each, anchored at its top-left corner so drawers grow downwards.
+export class Panel {
+  constructor() {
+    this.group = new THREE.Group();          // origin = top-left corner of the card
+    this.kit = new Kit();
+    this.chrome = makeLayer();
+    this.data = makeLayer();
+    this.chrome.mesh.renderOrder = 10;
+    this.data.mesh.renderOrder = 11;
+    this.data.mesh.position.z = 0.002;
+    this.group.add(this.chrome.mesh, this.data.mesh);
+    this.group.visible = false;
+
+    this.height = 800;
+    this.view = null;                        // { height(kit), draw(kit) }
+    this.hover = null;
+    this.dirty = false;
+    this.open = 0; this.openTarget = 0;      // 0..1 card visibility
+    this.reveal = 0; this.revealTarget = 0;  // 0..1 data layer visibility
+    this.holdData = false;                   // true while the swarm is still flying
+    this._lastDraw = 0;
+    this._applyHeight(800);
+
+    this._scratch = document.createElement('canvas');
+    this._scratch.width = 320;
+    this._sctx = this._scratch.getContext('2d', { willReadFrequently: true });
+  }
+
+  _applyHeight(h) {
+    this.height = h;
+    const ph = h * PX, v0 = 1 - h / MAX_H;
+    for (const layer of [this.chrome, this.data]) {
+      layer.mesh.scale.set(PANEL_W, ph, 1);
+      layer.mesh.position.x = PANEL_W / 2;
+      layer.mesh.position.y = -ph / 2;
+      layer.tex.repeat.set(1, h / MAX_H);
+      layer.tex.offset.set(0, v0);
+    }
+  }
+
+  get physicalHeight() { return this.height * PX; }
+
+  setView(view) {
+    this.view = view; this.hover = null;
+    this.redraw();
+  }
+
+  show() { this.group.visible = true; this.openTarget = 1; }
+  hide() { this.openTarget = 0; this.revealTarget = 0; }
+
+  invalidate() { this.dirty = true; }
+
+  redraw() {
+    if (!this.view) return;
+    const h = Math.min(MAX_H, Math.round(this.view.height(this.kit)));
+    if (h !== this.height) this._applyHeight(h);
+    this.kit.begin(this.chrome.ctx, this.data.ctx, h, this.hover);
+    this.view.draw(this.kit);
+    this.chrome.tex.needsUpdate = true;
+    this.data.tex.needsUpdate = true;
+    this.dirty = false;
+  }
+
+  setHover(target) {
+    const a = this.hover ? this.hover.id : null, b = target ? target.id : null;
+    this.hover = target;
+    if (a !== b) this.dirty = true;
+  }
+
+  // Ray → canvas pixel. Returns { x, y, point, distance } or null.
+  raycast(raycaster) {
+    if (!this.group.visible || this.open < 0.5) return null;
+    const hit = raycaster.intersectObject(this.chrome.mesh, false)[0];
+    if (!hit) return null;
+    return { x: hit.uv.x * W, y: (1 - hit.uv.y) * this.height, point: hit.point, distance: hit.distance };
+  }
+
+  // Canvas pixel → position in the space of `ancestor` (an Object3D above this.group).
+  toLocal(x, y, ancestor, out = new THREE.Vector3()) {
+    out.set(x * PX, -y * PX, 0.004);
+    this.group.updateWorldMatrix(true, false);
+    this.group.localToWorld(out);
+    return ancestor.worldToLocal(out);
+  }
+
+  // Positions (in `ancestor` space) of lit pixels of the data layer: where the swarm should land.
+  sampleInk(ancestor, max = 900) {
+    const sw = 320, sh = Math.max(1, Math.round(this.height * sw / W));
+    this._scratch.height = sh;
+    this._sctx.clearRect(0, 0, sw, sh);
+    this._sctx.drawImage(this.data.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
+    const px = this._sctx.getImageData(0, 0, sw, sh).data;
+    const lit = [];
+    for (let i = 3, n = 0; i < px.length; i += 4, n++) if (px[i] > 90) lit.push(n);
+    const out = [];
+    if (!lit.length) return out;
+    const step = Math.max(1, lit.length / max);
+    for (let f = 0; f < lit.length; f += step) {
+      const n = lit[f | 0];
+      out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor));
+    }
+    return out;
+  }
+
+  update(dt, now) {
+    const ease = (cur, target, rate) => cur + (target - cur) * (1 - Math.exp(-dt * rate));
+    this.open = ease(this.open, this.openTarget, 9);
+    if (this.openTarget === 0 && this.open < 0.01) { this.open = 0; this.group.visible = false; }
+    const want = this.holdData ? 0 : this.revealTarget;
+    this.reveal = ease(this.reveal, want, want > this.reveal ? 7 : 16);
+    this.chrome.mat.opacity = this.open;
+    this.data.mat.opacity = this.open * this.reveal;
+    this.group.scale.setScalar(0.94 + 0.06 * this.open);
+    if (this.dirty && now - this._lastDraw > 0.05) { this._lastDraw = now; this.redraw(); }
+  }
+}
