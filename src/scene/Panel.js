@@ -70,6 +70,7 @@ export class Panel {
     this.dirty = false;
     this.open = 0; this.openTarget = 0;      // 0..1 card visibility
     this.reveal = 0; this.revealTarget = 0;  // 0..1 data layer visibility
+    this.locked = false;                     // true while the display is fitted onto a window
     this.holdOpen = false;                   // the card itself waits for the swarm (when it is summoned)
     this.holdData = false;                   // true while the swarm is still flying
     this._lastDraw = 0;
@@ -199,7 +200,7 @@ export class Panel {
     this.data.mat.opacity = this.open * this.reveal;
     this.holoUniforms.uTime.value = now;
     this.holoUniforms.uOpacity.value = this.open;
-    this.group.scale.setScalar(0.94 + 0.06 * this.open);
+    if (!this.locked) this.group.scale.setScalar(0.94 + 0.06 * this.open);   // locked: the stage owns the whole matrix
     if (this.dirty && now - this._lastDraw > 0.05) { this._lastDraw = now; this.redraw(); }
   }
 }

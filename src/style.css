@@ -8,13 +8,15 @@ body.preview { background:
   radial-gradient(120% 80% at 70% 18%, rgba(120, 96, 70, 0.34), transparent 60%),
   radial-gradient(90% 70% at 12% 78%, rgba(60, 74, 96, 0.30), transparent 65%),
   linear-gradient(180deg, #1b1712 0%, #100f0f 55%, #0a0b0e 100%); }
-#camera { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
-body.camera #camera { display: block; }
+#camera, #photo { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+body.camera #camera, body.photo #photo { display: block; }
 #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
 #hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
   padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
-#hud > * { pointer-events: auto; }
+/* The bars themselves let taps through to the scene: only their buttons and fields take them. */
+#topbar > *, #bottombar #ask > * { pointer-events: auto; }
+#topbar .spacer, #brand { pointer-events: none; }
 #topbar { display: flex; align-items: center; gap: 8px; }
 #brand { font-weight: 700; letter-spacing: 0.02em; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
 #brand em { font-style: normal; font-weight: 500; color: var(--dim); margin-left: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; }
@@ -41,3 +43,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .actions button { padding: 14px 18px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(30, 42, 60, 0.92); font-weight: 600; font-size: 16px; text-align: left; }
 .actions button.primary { background: var(--cyan); color: #06121e; border-color: var(--cyan); }
 .small { margin: 8px 0 0; font-size: 13px; color: var(--dim); }
+
+/* Experimental: adjusting the outline of a window before it becomes the display. */
+#adjust { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+#adjust[hidden] { display: none; }
+#adjust-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#adjust-poly { fill: rgba(103, 201, 255, 0.14); stroke: #67c9ff; stroke-width: 2.5; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(80, 185, 255, 0.9)); }
+.handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; pointer-events: auto; touch-action: none; cursor: grab;
+  background: radial-gradient(circle, #fff 0 5px, rgba(103, 201, 255, 0.35) 6px 100%); border: 2px solid #67c9ff; box-shadow: 0 0 12px rgba(80, 185, 255, 0.8); }
+#adjust-bar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+  width: min(560px, calc(100% - 24px)); padding: 10px 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--edge); backdrop-filter: blur(10px); pointer-events: auto; }
+#adjust-bar span { flex: 1 1 200px; font-weight: 600; }
+.pill.primary { background: var(--cyan); color: #06121e; border-color: var(--cyan); }

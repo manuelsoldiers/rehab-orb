@@ -64,7 +64,7 @@ export class Pointer {
       this.mouse.downAt = null; this.mouse.dragging = false;
       if (!d || renderer.xr.isPresenting || dragged) return;              // a drag is a look, not a tap
       this._setMouse(e);
-      this.onSelect(this._mouseRay(), null);
+      this.onSelect(this._mouseRay(), null, { x: e.clientX, y: e.clientY });
       if (e.pointerType !== 'mouse') this.mouse.inside = false;          // no hover after a touch
     });
   }

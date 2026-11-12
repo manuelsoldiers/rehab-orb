@@ -21,6 +21,34 @@ Sono due oggetti con due comportamenti diversi, come nel reel.
 
 ![Il risultato del cammino con lo zoom sul giro puntato](docs/screens/7-walk-lap.jpg)
 
+## Esperimento: la vetrata come display
+
+> Solo su questo branch (`claude/window-display-bf1lo4`). È una prova, non ancora pronta per l'uso.
+
+Tocchi una vetrata e la vetrata diventa il display.
+
+1. Scegli **Camera view** (telefono) oppure **Use a photo of the room** (per provarlo al computer con una foto della stanza).
+2. Tocca il vetro. L'app cerca la vetrata nell'immagine e ne propone il contorno, con quattro angoli che puoi trascinare.
+3. **Use this window**: la sfera si riversa nel vetro e scompare, la stanza si attenua, il display occupa la vetrata. Il bordo dello schermo prende il colore dello stato (ascolto, lavoro, parola), al posto della sfera. I sottotitoli stanno in una fascia in basso.
+4. **Close** restituisce la stanza e la sfera. **Float here instead** apre invece il display flottante di sempre.
+
+Come funziona:
+- **Riconoscimento.** Di giorno una vetrata vista da dentro è un quadrilatero luminoso in una stanza più scura. L'app parte dalla zona chiara sotto il tocco, segue verso l'alto e verso il basso i due bordi laterali del vetro, e si ferma dove trova il bordo orizzontale che va da un lato all'altro.
+- **Inseguimento.** I quattro angoli sono direzioni nella stanza, quindi tengono mentre ruoti il telefono. Circa 14 volte al secondo l'immagine della fotocamera li riporta sui bordi del vetro, e questo assorbe i piccoli spostamenti e la deriva del giroscopio.
+- **Riservatezza.** L'immagine della fotocamera è analizzata sul dispositivo, a bassa risoluzione, e non viene salvata né inviata.
+
+Cosa è stato verificato:
+- due foto reali della stessa vetrata, da due punti diversi: riconoscimento dell'intera vetrata in entrambe, e riaggancio automatico passando dall'una all'altra;
+- 9 test automatici su una stanza sintetica (riconoscimento, falsi positivi, inseguimento, lato fuori inquadratura);
+- il percorso completo nel browser, in orizzontale e in verticale, usando una foto.
+
+Cosa **non** è stato verificato o non c'è ancora:
+- **la fotocamera dal vivo**: movimento reale, esposizione che cambia, messa a fuoco. È il punto più incerto;
+- **di sera**, con il vetro più scuro della stanza. C'è il caso previsto nel codice, ma non l'ho potuto provare;
+- **in modalità AR (WebXR)** la funzione non è attiva: lì il browser non dà accesso ai pixel della fotocamera. Per ora vale solo in Camera view;
+- i bordi alto e basso sono i meno affidabili: se non sono netti (due ante con telai diversi, una tenda), lo schermo li tiene fermi rispetto ai lati invece di inseguirli;
+- camminare per la stanza: l'inseguimento regge piccoli spostamenti, non un cambio di punto di vista ampio.
+
 ## I tre argomenti
 
 | Argomento | Cosa fa la sfera | Cosa puoi puntare |
@@ -43,7 +71,8 @@ Sullo schermo iniziale scegli come usarla:
 | Modo | Dove funziona | Come si punta |
 |---|---|---|
 | **Enter AR** | Browser del Meta Quest; Chrome su Android con ARCore. Serve HTTPS. | Raggio del controller o della mano; sul telefono, un tocco |
-| **Camera view** | Telefoni senza WebXR (per esempio iPhone): fotocamera posteriore come sfondo e giroscopio per guardarsi intorno | Tocco |
+| **Camera view** | Qualsiasi telefono, anche senza WebXR (per esempio iPhone): fotocamera posteriore come sfondo e giroscopio per guardarsi intorno | Tocco |
+| **Use a photo of the room** | Qualsiasi browser: una foto al posto della fotocamera | Mouse o tocco |
 | **Preview on this screen** | Qualsiasi browser recente | Mouse o tocco. Trascina per guardarti intorno, rotella o due dita per lo zoom |
 
 Per provarla su un visore o un telefono la pagina deve essere pubblicata su HTTPS: `npm run build` produce la cartella `dist/`, statica, che si può mettere su qualunque hosting.
@@ -91,6 +120,8 @@ src/
   scene/Particles.js   lo sciame che porta il dato dalla sfera alla scheda
   scene/Caption.js     sottotitoli a karaoke dentro la scena
   input/Pointer.js     controller, mano, tocco e mouse come un unico raggio
+  vision/              (esperimento) riconoscere e inseguire una vetrata nell'immagine della fotocamera
+  scene/WindowScreen.js  (esperimento) lo schermo che prende il posto della vetrata
   voice/Voice.js       sintesi e riconoscimento vocale del browser
   brain/Brain.js       da parole e puntamento ad azioni
   topics/              un file per argomento + clinical.js (numeri e formule)

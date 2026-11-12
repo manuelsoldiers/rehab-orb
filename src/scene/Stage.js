@@ -4,6 +4,9 @@ import { Panel, PANEL_W } from './Panel.js';
 import { Particles } from './Particles.js';
 import { Caption } from './Caption.js';
 import { Pointer } from '../input/Pointer.js';
+import { WindowScreen } from './WindowScreen.js';
+import { Vision } from '../vision/Vision.js';
+import { findWindow, trackQuad, quadPolarity, squareToQuad } from '../vision/window.js';
 
 const ORB_R = 0.1;
 const TAP_Y = 0.27;          // metres from the top of the canvas to the centre of a base card: the tap lands there
@@ -44,11 +47,28 @@ export class Stage {
     this.pointer = new Pointer(this.renderer, this.camera, this.scene, canvas);
     this.raycaster = new THREE.Raycaster();
     this.onPress = () => {}; this.onHover = () => {}; this.onEmptyTap = () => {};
-    this.pointer.onSelect = (ray) => this._select(ray);
+    this.pointer.onSelect = (ray, entry, pt) => this._select(ray, pt);
     this.pointer.onDrag = (dx, dy) => this._look(dx, dy);
     this.pointer.onPinch = (factor) => this.zoomBy(factor);
 
-    this.mode = 'preview';            // preview | camera | xr
+    // A window used as the display (experimental): the glass becomes the screen, the room goes dim.
+    this.vision = new Vision();
+    this.screen = new WindowScreen();
+    this.scene.add(this.screen.group);
+    this.window = null;               // { dirs: 4 world directions, locked, polarity, aspect, fit }
+    this.orbGone = false;
+    this.dimUniforms = { uDim: { value: 0 } };     // soft, not dark: the patient must stay visible
+    this.dim = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+      uniforms: this.dimUniforms, transparent: true, depthTest: false, depthWrite: false,
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }',
+      fragmentShader: `precision mediump float; varying vec2 vUv; uniform float uDim;
+        void main() { float d = length(vUv - 0.5); gl_FragColor = vec4(0.010, 0.028, 0.060, uDim * (0.42 + 0.30 * smoothstep(0.15, 0.75, d))); }`,
+    }));
+    this.dim.frustumCulled = false; this.dim.renderOrder = 1;
+    this.scene.add(this.dim);
+    this._mat = new THREE.Matrix4(); this._qi = new THREE.Quaternion();
+
+    this.mode = 'preview';            // preview | camera | photo | xr
     this.placed = false;              // the display has a place in the room
     this.voiceState = 'idle';
     this.time = 0;
@@ -67,12 +87,13 @@ export class Stage {
     if (!this.renderer.xr.isPresenting) this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     // Close to a phone camera when its feed is the backdrop; a slightly longer lens for the preview.
-    const fov = this.mode === 'camera' ? (portrait ? 62 : 42) : (portrait ? 54 : 38);
+    const fov = this.mode === 'camera' || this.mode === 'photo' ? (portrait ? 62 : 42) : (portrait ? 54 : 38);
     this.camera.fov = THREE.MathUtils.clamp(fov / this.zoom, 16, 75);
     this.camera.updateProjectionMatrix();
   }
 
-  zoomBy(factor) { this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 0.7, 2.6); this.resize(); }
+  // Only where the backdrop is ours: over a camera feed or a photo, zooming would pull the scene off the picture.
+  zoomBy(factor) { if (this.mode !== 'preview') return; this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 0.7, 2.6); this.resize(); }
 
   _look(dx, dy) {
     if (this.mode !== 'preview') return;          // with a gyroscope or a headset, the device does the looking
@@ -135,6 +156,7 @@ export class Stage {
   }
 
   _followCaption(dt) {
+    if (this.window?.locked) return;               // on a window the captions are part of the screen
     const m = this.caption.mesh, depth = this.reach * 0.8, t = this._tan();
     const target = this._viewPoint(0, 0.74, depth, 1, Math.tan(rad(15)), this._v);
     const width = Math.min(2 * t.x * depth * 0.86, depth * 0.62);       // most of a phone screen; a modest band in a headset
@@ -170,6 +192,7 @@ export class Stage {
 
   // Move an open display to another spot: it dissolves and re-forms there.
   relocate(ray = this._defaultRay()) {
+    if (this.window?.locked) return;               // it is on the window: it stays there
     if (!this.panel.isOpen) { this.place(ray); return; }
     const old = this.panel.sampleInk(this.scene, 1400, true);
     this.place(ray);
@@ -221,6 +244,7 @@ export class Stage {
     const ink = this.panel.isOpen ? this.panel.sampleInk(this.scene, 1400, true) : [];
     this.panel.hide();
     this.placed = false;
+    if (this.window) this.clearWindow();           // the room comes back, and so does the orb
     if (ink.length) this.swarm.fly(ink, null, { duration: 1.0, to: this.orb.group.position, ordered: true, spread: ORB_R * 0.7 });
   }
 
@@ -229,22 +253,154 @@ export class Stage {
   // Entering or leaving AR changes the coordinate frame: an open display is put back in front.
   frameChanged() { this._xrFrames = 0; this._orbReady = false; this._replace = true; this.resize(); }
 
+  // ---- a window as the display (experimental) ------------------------------------
+  // The four corners are kept as directions in the room, so they hold while the device turns; the
+  // camera picture then nudges them back onto the glass, which also absorbs small steps and drift.
+  _dirFromScreen(x, y, out = new THREE.Vector3()) {
+    const t = this._tan();
+    out.set((x / innerWidth * 2 - 1) * t.x, (1 - y / innerHeight * 2) * t.y, -1).normalize();
+    return out.applyQuaternion(this.camera.getWorldQuaternion(this._q));
+  }
+
+  // Screen position (CSS px) of the four corners, or null when the window is not in front of the camera.
+  windowPoints() {
+    if (!this.window) return null;
+    const t = this._tan(), out = [];
+    this._qi.copy(this.camera.getWorldQuaternion(this._q)).invert();
+    for (const dir of this.window.dirs) {
+      const d = this._f.copy(dir).applyQuaternion(this._qi);
+      if (d.z > -0.05) return null;
+      out.push([(d.x / (-d.z * t.x) + 1) / 2 * innerWidth, (1 - d.y / (-d.z * t.y)) / 2 * innerHeight]);
+    }
+    return out;
+  }
+
+  // Look for a window under a tapped point of the camera picture. Leaves it as a proposal to adjust.
+  findWindowAt(x, y) {
+    const frame = this.vision.grab(), at = frame && this.vision.toAnalysis(x, y);
+    const found = at && findWindow(frame.lum, frame.w, frame.h, at[0], at[1]);
+    if (!found) return false;
+    // Corners stay on the screen, where they can be grabbed: a window wider than the view is used as far as it shows.
+    const pad = 16, clamp = THREE.MathUtils.clamp;
+    this.setWindow(found.corners.map(([ax, ay]) => { const [x, y] = this.vision.toScreen(ax, ay); return [clamp(x, pad, innerWidth - pad), clamp(y, pad, innerHeight - pad)]; }));
+    return true;
+  }
+
+  setWindow(points) {
+    this.window = { dirs: points.map(([x, y]) => this._dirFromScreen(x, y)), locked: false, polarity: [0, 0, 0, 0], aspect: 1.6, fit: null, lastTrack: 0 };
+  }
+
+  moveWindowCorner(i, x, y) { if (this.window) this._dirFromScreen(x, y, this.window.dirs[i]); }
+
+  // Fit the display onto the window: the orb pours itself into it and is gone, the room dims.
+  lockWindow() {
+    const w = this.window, pts = this.windowPoints(); if (!w || !pts) return false;
+    const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    w.aspect = THREE.MathUtils.clamp((len(pts[0], pts[1]) + len(pts[3], pts[2])) / (len(pts[0], pts[3]) + len(pts[1], pts[2])), 0.4, 3.5);
+    const frame = this.vision.grab();
+    if (frame) w.polarity = quadPolarity(frame.lum, frame.w, frame.h, pts.map(([x, y]) => this.vision.toAnalysis(x, y)));
+    const old = this.panel.isOpen ? this.panel.sampleInk(this.scene, 1400, true) : null;
+    w.locked = true; w.fit = null;
+    this.anchor.position.set(0, 0, 0); this.anchor.rotation.set(0, 0, 0);
+    this.panel.locked = true; this.panel.group.matrixAutoUpdate = false;
+    this.placed = true; this.orbGone = true;
+    this.screen.target = 1;
+    this._updateWindow(0);
+    if (old) {                                     // a floating display was already open: it moves onto the glass
+      const now = this.panel.sampleInk(this.scene, 1400, true);
+      this.panel.open = 0; this.panel.reveal = 0; this.panel.holdOpen = this.panel.holdData = true;
+      this.swarm.fly(old, now, { duration: 1.1 });
+    }
+    return true;
+  }
+
+  clearWindow() {
+    this.window = null; this.orbGone = false;
+    this.screen.target = 0;
+    this.panel.locked = false; this.panel.group.matrixAutoUpdate = true;
+    this.caption.mesh.matrixAutoUpdate = true;
+    this._orbReady = false;                        // it reappears at its spot, not where it vanished
+  }
+
+  _trackWindow() {
+    const w = this.window, frame = this.vision.grab(), pts = frame && this.windowPoints();
+    if (!pts) return;
+    const guess = pts.map(([x, y]) => this.vision.toAnalysis(x, y));
+    const t = trackQuad(frame.lum, frame.w, frame.h, guess, { polarity: w.polarity, radius: 4 });
+    if (!t.ok) return;
+    t.corners.forEach(([ax, ay], i) => {
+      const [sx, sy] = this.vision.toScreen(ax, ay);
+      w.dirs[i].lerp(this._dirFromScreen(sx, sy, this._v), 0.45).normalize();
+    });
+  }
+
+  _updateWindow(dt) {
+    const w = this.window, locked = !!w && w.locked;
+    this.dimUniforms.uDim.value += ((locked ? 1 : 0) - this.dimUniforms.uDim.value) * (1 - Math.exp(-dt * 2.6));
+    this.dim.visible = this.dimUniforms.uDim.value > 0.01;
+    this.screen.update(dt, this.time, this.orb.uniforms.uA.value);
+    if (!locked) return;
+    if (this.vision.ready && this.time - w.lastTrack > 0.07) { w.lastTrack = this.time; this._trackWindow(); }
+    const pts = this.windowPoints();
+    this.screen.plate.visible = this.screen.glow.visible = !!pts;
+    if (!pts) return;                              // looking away: nothing to draw until it is back in view
+
+    // Grown by a hair, so no sliver of daylight shows along the frame.
+    const cx = (pts[0][0] + pts[1][0] + pts[2][0] + pts[3][0]) / 4, cy = (pts[0][1] + pts[1][1] + pts[2][1] + pts[3][1]) / 4;
+    const ndc = pts.map(([x, y]) => { const gx = cx + (x - cx) * 1.012, gy = cy + (y - cy) * 1.012; return [gx / innerWidth * 2 - 1, 1 - gy / innerHeight * 2]; });
+    // Any four points are the picture of some flat parallelogram in front of the camera. Build that one:
+    // a point (u, v) of the window sits at O + u·U + v·V, and the lens puts it exactly on the glass.
+    const [a, b, c, d, e, f, g, h] = squareToQuad(ndc), t = this._tan();
+    const k = 3 / (0.5 * g + 0.5 * h + 1);         // about 3 m away; only the ratios matter
+    const U = new THREE.Vector3(t.x * a, t.y * d, -g).multiplyScalar(k);
+    const V = new THREE.Vector3(t.x * b, t.y * e, -h).multiplyScalar(k);
+    const O = new THREE.Vector3(t.x * c, t.y * f, -1).multiplyScalar(k);
+    const N = new THREE.Vector3().crossVectors(U, V).normalize().negate();
+    const up = V.clone().negate();
+    this.screen.uniforms.uAspect.value = w.aspect;
+    this.screen.group.matrix.makeBasis(U, up, N).setPosition(O).premultiply(this.camera.matrixWorld);
+    this.screen.group.matrixWorldNeedsUpdate = true;
+
+    // The card keeps its proportions inside the glass, as large as it fits, and eases to a new size
+    // when a drawer opens.
+    // The bottom strip of the glass is kept free for the captions.
+    const C = 1280 / this.panel.height, m = 0.03, strip = 0.105, room = 1 - m - strip;
+    let uw = 1 - 2 * m, vh = uw * w.aspect / C;
+    if (vh > room) { vh = room; uw = vh * C / w.aspect; }
+    const want = { u0: (1 - uw) / 2, v0: m + (room - vh) / 2, uw, vh };
+    if (!w.fit) w.fit = want; else for (const key of Object.keys(want)) w.fit[key] += (want[key] - w.fit[key]) * (1 - Math.exp(-dt * 6));
+    const fit = w.fit, sx = fit.uw / PANEL_W, sy = fit.vh / this.panel.physicalHeight;
+    const X = U.clone().multiplyScalar(sx), Y = up.clone().multiplyScalar(sy);
+    const P = O.clone().addScaledVector(U, fit.u0).addScaledVector(V, fit.v0);
+    this.panel.group.matrix.makeBasis(X, Y, N.clone().multiplyScalar(X.length())).setPosition(P).premultiply(this.camera.matrixWorld);
+    this.panel.group.matrixWorldNeedsUpdate = true;
+
+    // Captions: subtitles along the bottom of the screen, in its own plane (the mesh is 0.62 wide).
+    const cs = Math.min(0.9 / 0.62, 0.9 * strip / (0.0775 * w.aspect));    // as tall as the strip allows, never wider than the glass
+    const cap = this.caption.mesh;
+    cap.matrixAutoUpdate = false;
+    cap.matrix.makeBasis(U.clone().multiplyScalar(cs), up.clone().multiplyScalar(cs * w.aspect), N)
+      .setPosition(O.clone().addScaledVector(U, 0.5).addScaledVector(V, 1 - strip / 2 - 0.008)).premultiply(this.camera.matrixWorld);
+    cap.matrixWorldNeedsUpdate = true;
+  }
+
   // ---- pointing ---------------------------------------------------------------
   // The display wins over the orb: the orb may drift in front of a button, and must not swallow the tap.
   _probe(ray) {
     this.raycaster.ray.copy(ray);
     const p = this.panel.raycast(this.raycaster);
     if (p) return { ...p, target: this.panel.kit.hit(p.x, p.y), onPanel: true };
+    if (this.orbGone) return null;
     const sphere = new THREE.Sphere(this.orb.group.position, ORB_R * 1.25);
     if (ray.intersectSphere(sphere, this._f)) return { distance: ray.origin.distanceTo(this._f), target: { id: 'orb' }, onPanel: false };
     return null;
   }
 
-  _select(ray) {
+  _select(ray, pt) {
     const hit = this._probe(ray);
-    if (hit && hit.target) return this.onPress(hit.target);
+    if (hit && hit.target) return this.onPress(hit.target, ray, pt);
     if (hit || this.panel.near(ray, 0.07)) return;       // on the card between two buttons, or just off its edge
-    this.onEmptyTap(ray);
+    this.onEmptyTap(ray, pt);
   }
 
   _hover() {
@@ -281,8 +437,9 @@ export class Stage {
       this._followCaption(dt);
       if (this._replace) { this._replace = false; if (this.panel.isOpen) this.place(this._defaultRay()); else this.placed = false; }
     }
-    // The display floats: a few millimetres up and down, nothing else.
-    this.panel.group.position.set(-PANEL_W / 2, TAP_Y + Math.sin(this.time * 1.25) * 0.006, 0);
+    // The display floats: a few millimetres up and down, nothing else. On a window it does not move at all.
+    if (!this.panel.locked) this.panel.group.position.set(-PANEL_W / 2, TAP_Y + Math.sin(this.time * 1.25) * 0.006, 0);
+    this._updateWindow(dt);
 
     this.swarm.update(dt);
     const f = this.swarm.flight;
@@ -294,6 +451,10 @@ export class Stage {
     if (this.swarm.active && this.swarm.liveA) level = Math.max(level, 1 - f);      // it swells while it pours the display out
     this.orb.level = level;
     this.orb.update(dt);
+    // Poured into the window, the orb is spent: it shrinks away once the stream has left it.
+    const gone = this.orbGone && !(this.swarm.active && this.swarm.liveA && f < 0.5);
+    const s = this.orb.group.scale.x + ((gone ? 0 : 1) - this.orb.group.scale.x) * (1 - Math.exp(-dt * 7));
+    this.orb.group.scale.setScalar(s); this.orb.group.visible = s > 0.02;
     this.caption.update(dt);
     this.panel.update(dt, this.time);
     this._hover();
