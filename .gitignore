@@ -3,3 +3,5 @@ dist/
 .vite/
 *.log
 .DS_Store
+# screenshots are captured as PNG and committed as JPEG
+docs/screens/*.png
