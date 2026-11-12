@@ -9,8 +9,11 @@ export class Pointer {
   constructor(renderer, camera, scene, dom) {
     this.renderer = renderer; this.camera = camera; this.dom = dom;
     this.onSelect = () => {};
+    this.onDrag = () => {};          // (dx, dy) in pixels: looking around when there is no head tracking
+    this.onPinch = () => {};         // (factor): two fingers, zoom
+    this.touches = new Map();        // active pointers, to tell a pinch from a tap
     this.raycaster = new THREE.Raycaster();
-    this.mouse = { ndc: new THREE.Vector2(), inside: false, downAt: null };
+    this.mouse = { ndc: new THREE.Vector2(), inside: false, downAt: null, last: null, dragging: false };
     this.controllers = [];
     this._m = new THREE.Matrix4();
 
@@ -30,13 +33,36 @@ export class Pointer {
       this.controllers.push(entry);
     }
 
-    dom.addEventListener('pointermove', (e) => this._setMouse(e));
-    dom.addEventListener('pointerdown', (e) => { this._setMouse(e); this.mouse.downAt = [e.clientX, e.clientY]; });
+    dom.addEventListener('pointermove', (e) => {
+      this._setMouse(e);
+      const m = this.mouse;
+      if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, [e.clientX, e.clientY]);
+      if (this.touches.size === 2 && !renderer.xr.isPresenting) {          // pinch
+        const [a, b] = [...this.touches.values()], gap = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (m.gap) this.onPinch(gap / m.gap);
+        m.gap = gap; m.dragging = true;                                    // and it will not count as a tap
+        return;
+      }
+      if (!m.downAt || renderer.xr.isPresenting) return;
+      if (!m.dragging && Math.hypot(e.clientX - m.downAt[0], e.clientY - m.downAt[1]) > 10) m.dragging = true;
+      if (m.dragging) this.onDrag(e.clientX - m.last[0], e.clientY - m.last[1]);
+      m.last = [e.clientX, e.clientY];
+    });
+    dom.addEventListener('pointerdown', (e) => {
+      this._setMouse(e);
+      this.touches.set(e.pointerId, [e.clientX, e.clientY]);
+      this.mouse.gap = 0;
+      this.mouse.downAt = [e.clientX, e.clientY]; this.mouse.last = [e.clientX, e.clientY]; this.mouse.dragging = this.touches.size > 1;
+      dom.setPointerCapture?.(e.pointerId);
+    });
     dom.addEventListener('pointerleave', () => { this.mouse.inside = false; });
+    dom.addEventListener('pointercancel', (e) => { this.touches.delete(e.pointerId); this.mouse.downAt = null; this.mouse.dragging = false; });
     dom.addEventListener('pointerup', (e) => {
-      const d = this.mouse.downAt; this.mouse.downAt = null;
-      if (!d || renderer.xr.isPresenting) return;
-      if (Math.hypot(e.clientX - d[0], e.clientY - d[1]) > 12) return;   // a drag, not a tap
+      this.touches.delete(e.pointerId);
+      const d = this.mouse.downAt, dragged = this.mouse.dragging;
+      if (this.touches.size) { this.mouse.last = [...this.touches.values()][0]; return; }   // one finger of a pinch is still down
+      this.mouse.downAt = null; this.mouse.dragging = false;
+      if (!d || renderer.xr.isPresenting || dragged) return;              // a drag is a look, not a tap
       this._setMouse(e);
       this.onSelect(this._mouseRay(), null);
       if (e.pointerType !== 'mouse') this.mouse.inside = false;          // no hover after a touch

@@ -4,6 +4,7 @@ import { Kit, W } from '../ui/kit.js';
 export const PANEL_W = 0.8;                 // metres
 const PX = PANEL_W / W;                     // metres per canvas pixel
 const MAX_H = 1500;
+const _m = new THREE.Matrix4(), _o = new THREE.Vector3(), _d = new THREE.Vector3();
 
 function makeLayer() {
   const canvas = document.createElement('canvas');
@@ -37,6 +38,7 @@ export class Panel {
     this.dirty = false;
     this.open = 0; this.openTarget = 0;      // 0..1 card visibility
     this.reveal = 0; this.revealTarget = 0;  // 0..1 data layer visibility
+    this.holdOpen = false;                   // the card itself waits for the swarm (when it is summoned)
     this.holdData = false;                   // true while the swarm is still flying
     this._lastDraw = 0;
     this._applyHeight(800);
@@ -66,6 +68,7 @@ export class Panel {
   }
 
   show() { this.group.visible = true; this.openTarget = 1; }
+  get isOpen() { return this.group.visible && this.openTarget === 1; }
   hide() { this.openTarget = 0; this.revealTarget = 0; }
 
   invalidate() { this.dirty = true; }
@@ -89,7 +92,7 @@ export class Panel {
 
   // Ray → canvas pixel. Returns { x, y, point, distance } or null.
   raycast(raycaster) {
-    if (!this.group.visible || this.open < 0.5) return null;
+    if (!this.isOpen || this.open < 0.5) return null;
     const hit = raycaster.intersectObject(this.chrome.mesh, false)[0];
     if (!hit) return null;
     return { x: hit.uv.x * W, y: (1 - hit.uv.y) * this.height, point: hit.point, distance: hit.distance };
@@ -103,28 +106,54 @@ export class Panel {
     return ancestor.worldToLocal(out);
   }
 
-  // Positions (in `ancestor` space) of lit pixels of the data layer: where the swarm should land.
-  sampleInk(ancestor, max = 900) {
-    const sw = 320, sh = Math.max(1, Math.round(this.height * sw / W));
+  // True when the ray passes through the card or within `margin` metres of it.
+  near(ray, margin = 0.06) {
+    if (!this.isOpen) return false;
+    this.group.updateWorldMatrix(true, false);
+    const inv = _m.copy(this.group.matrixWorld).invert();
+    const o = _o.copy(ray.origin).applyMatrix4(inv), d = _d.copy(ray.direction).transformDirection(inv);
+    if (Math.abs(d.z) < 1e-5) return false;
+    const t = -o.z / d.z; if (t < 0) return false;
+    const x = o.x + d.x * t, y = o.y + d.y * t;
+    return x > -margin && x < PANEL_W + margin && y < margin && y > -this.physicalHeight - margin;
+  }
+
+  // Where the swarm should land, in `ancestor` space.
+  //   whole = false: the lit pixels of the data layer (a chart re-forming).
+  //   whole = true:  the card itself, as outlines, text and chart (the display being summoned).
+  sampleInk(ancestor, max = 900, whole = false) {
+    const sw = 320, sh = Math.max(1, Math.round(this.height * sw / W)), g = this._sctx;
     this._scratch.height = sh;
-    this._sctx.clearRect(0, 0, sw, sh);
-    this._sctx.drawImage(this.data.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
-    const px = this._sctx.getImageData(0, 0, sw, sh).data;
-    const lit = [];
-    for (let i = 3, n = 0; i < px.length; i += 4, n++) if (px[i] > 90) lit.push(n);
-    const out = [];
-    if (!lit.length) return out;
-    const step = Math.max(1, lit.length / max);
-    for (let f = 0; f < lit.length; f += step) {
-      const n = lit[f | 0];
-      out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor));
+    g.clearRect(0, 0, sw, sh);
+    if (whole) g.drawImage(this.chrome.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
+    g.drawImage(this.data.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
+    const px = g.getImageData(0, 0, sw, sh).data;
+    const alpha = (n) => px[n * 4 + 3];
+    const bright = [], edge = [], fill = [];
+    for (let n = 0, total = sw * sh; n < total; n++) {
+      const a = alpha(n); if (a < 90) continue;
+      if (!whole) { bright.push(n); continue; }
+      const i = n * 4, x = n % sw;
+      if (Math.max(px[i], px[i + 1], px[i + 2]) > 150) bright.push(n);
+      else if ((x > 0 && alpha(n - 1) < 40) || (x < sw - 1 && alpha(n + 1) < 40) || (n >= sw && alpha(n - sw) < 40) || (n < total - sw && alpha(n + sw) < 40)) edge.push(n);
+      else fill.push(n);
     }
+    const out = [];
+    const take = (list, count) => {
+      if (!list.length || count <= 0) return;
+      const step = Math.max(1, list.length / count);
+      for (let f = 0; f < list.length; f += step) {
+        const n = list[f | 0];
+        out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor));
+      }
+    };
+    if (whole) { take(bright, max * 0.55); take(edge, max * 0.3); take(fill, max * 0.15); } else take(bright, max);
     return out;
   }
 
   update(dt, now) {
     const ease = (cur, target, rate) => cur + (target - cur) * (1 - Math.exp(-dt * rate));
-    this.open = ease(this.open, this.openTarget, 9);
+    this.open = ease(this.open, this.holdOpen ? 0 : this.openTarget, this.openTarget ? 6 : 12);
     if (this.openTarget === 0 && this.open < 0.01) { this.open = 0; this.group.visible = false; }
     const want = this.holdData ? 0 : this.revealTarget;
     this.reveal = ease(this.reveal, want, want > this.reveal ? 7 : 16);

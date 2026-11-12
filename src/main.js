@@ -14,6 +14,11 @@ if (params.has('mute')) voice.muted = true;
 // ---- wiring ---------------------------------------------------------------
 stage.onPress = (target) => brain.press(target);
 stage.onHover = (target) => brain.hover(target);
+// A tap on empty space summons the display there; later taps move it, unless it is pinned.
+stage.onEmptyTap = (ray) => {
+  if (!started) return;
+  if (!brain.active) { stage.place(ray); brain.open('home'); $('heard').textContent = ''; } else if (!brain.pinned) stage.relocate(ray);
+};
 voice.onState = (s) => { stage.voiceState = s; $('btn-mic').classList.toggle('on', voice.handsFree); };
 voice.onCaption = (text, seconds) => (text ? stage.caption.play(text, seconds) : stage.caption.stop());
 voice.onWord = (i) => stage.caption.sync(i);
@@ -36,7 +41,7 @@ addEventListener('keydown', (e) => {
   const t = brain.active;
   if (t?.busy) { e.preventDefault(); brain.press({ id: t.id === 'sixmwt' ? 'lap' : 'rep' }); }
 });
-addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') stage.parallax.set((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1); });
+$('stage').addEventListener('wheel', (e) => { e.preventDefault(); stage.zoomBy(e.deltaY < 0 ? 1.08 : 1 / 1.08); }, { passive: false });
 addEventListener('resize', () => stage.resize());
 // Taps on the HUD must not also fire a WebXR select through the page behind it.
 $('hud').addEventListener('beforexrselect', (e) => e.preventDefault());
@@ -51,10 +56,15 @@ function setMode(mode) {
   stage.resize();
 }
 
+// Only the orb at first. The display is summoned by a tap (or by asking for a test).
+let started = false;
 function begin() {
   $('intro').hidden = true;
   voice.unlock();
-  if (!brain.active) brain.open('home');
+  if (started) return;
+  started = true;
+  $('heard').textContent = 'Tap anywhere to place the display.';
+  voice.say('Tap anywhere and I will open the display there. Or just ask me for a test.');
 }
 
 async function enterAR() {
@@ -65,9 +75,9 @@ async function enterAR() {
   const floor = session.enabledFeatures ? session.enabledFeatures.includes('local-floor') : false;
   stage.renderer.xr.setReferenceSpaceType(floor ? 'local-floor' : 'local');
   await stage.renderer.xr.setSession(session);
-  stage._placed = false; stage._xrFrames = 0;
   setMode('xr');
-  session.addEventListener('end', () => { stage._placed = false; setMode('preview'); stage.resize(); });
+  stage.frameChanged();
+  session.addEventListener('end', () => { setMode('preview'); stage.frameChanged(); });
   begin();
 }
 
@@ -77,6 +87,7 @@ async function enterCamera() {
   const video = $('camera');
   video.srcObject = stream; await video.play();
   setMode('camera');
+  stage.frameChanged();
   try {
     if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission();
   } catch { /* stays a fixed view */ }

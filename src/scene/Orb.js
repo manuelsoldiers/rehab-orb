@@ -131,14 +131,14 @@ export class Orb {
       new THREE.SphereGeometry(radius, 64, 48),
       new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: this.uniforms, transparent: true }),
     );
-    this.mesh.renderOrder = 5;
+    this.mesh.renderOrder = 15;     // after the display: the orb is nearer and may pass in front of it
 
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({
       map: haloTexture(), color: PALETTE.idle.a, transparent: true, opacity: 0.5,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     this.halo.scale.setScalar(radius * 3.4);
-    this.halo.renderOrder = 4;
+    this.halo.renderOrder = 14;
 
     this.group.add(this.halo, this.mesh);
     this._ca = new THREE.Color(); this._cb = new THREE.Color(); this._cc = new THREE.Color();

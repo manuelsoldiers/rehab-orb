@@ -7,7 +7,7 @@ function make(speed = 1) {
   const said = [];
   const voice = { say: (t) => { said.push(t); return Promise.resolve(true); }, stopSpeaking() {}, muted: false, handsFree: false, sttSupported: false, toggleListening: () => false };
   const calls = [];
-  const stage = { show: (v) => calls.push(['show', v.id]), hide: () => calls.push(['hide']), refresh() {}, morph: () => calls.push(['morph']), setPinned() {}, recenter() {} };
+  const stage = { show: (v) => calls.push(['show', v.id]), hide: () => calls.push(['hide']), refresh() {}, morph: () => calls.push(['morph']), recenter: () => calls.push(['recenter']) };
   return { brain: new Brain({ voice, stage, speed }), said, calls };
 }
 

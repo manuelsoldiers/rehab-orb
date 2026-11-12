@@ -34,7 +34,7 @@ Una sfera luminosa sospesa in una camera da letto vera risponde a una domanda fa
 1. **La sfera è l'interfaccia.** Non ci sono finestre, barre o icone finché non servono. È una palla di vetro scuro con nastri luminosi che si muovono all'interno, un bordo colorato e un riflesso.
 2. **Il colore della sfera dice lo stato.** Verde-acqua = ascolto. Magenta/viola = sto lavorando. Arancio su blu = sto parlando. Il passaggio di colore dura circa mezzo secondo.
 3. **Le particelle sono il «caricamento».** Il dato non appare: viaggia dalla sfera al pannello. Quando cambia la vista, il vecchio grafico si scioglie nel nuovo. Si vede così da dove arriva l'informazione.
-4. **Il pannello è un oggetto nella stanza.** È una scheda scura semitrasparente con angoli arrotondati, leggermente ruotata verso chi guarda, grande circa quattro volte il diametro della sfera. Resta dov'è quando ci si muove. Cresce verso il basso, a cassetti, quando c'è altro da dire.
+4. **Il pannello è un oggetto nella stanza, la sfera no.** Il pannello è una scheda scura semitrasparente con angoli arrotondati, grande circa quattro volte il diametro della sfera. Non c'è all'inizio: viene evocato. Poi resta dov'è quando ci si muove, con il bordo lontano ruotato verso chi guarda e una lieve oscillazione verticale. Cresce verso il basso, a cassetti, quando c'è altro da dire. La sfera invece **segue la telecamera**: resta nella stessa zona dell'inquadratura (a sinistra, poco sopra il centro), insegue i movimenti con un piccolo ritardo, e tra 8 e 15 secondi finisce davanti all'angolo del pannello.
 5. **Gerarchia della scheda.** Titolo grande in maiuscolo. Sottotitolo piccolo e spaziato. Il numero che conta in alto a destra, con sotto la variazione in azzurro. Linea bianca su griglia punteggiata. Fonte del dato sempre visibile, in piccolo.
 6. **Puntare + parlare (deissi).** Il gesto indica *dove*, la voce dice *cosa fare* («right here»). Il cursore si aggancia al dato più vicino e mostra subito la lettura: prima di chiedere, l'utente vede già che cosa ha selezionato.
 7. **L'assistente propone il passo successivo** («you can point at a day…») invece di aspettare un comando che l'utente non conosce.
@@ -52,7 +52,9 @@ Una sfera luminosa sospesa in una camera da letto vera risponde a una domanda fa
 | Zoom a 31 giorni + numeri della seduta + istogramma | Zoom sul giro puntato + tempo e velocità del giro + barre dei tempi di tutti i giri |
 | «What happened on 25 Jun» con fonte | «What happened at lap 4» e «What this means», con la fonte |
 | «No direct evidence that this caused the move» | «Timing alone cannot tell me why» e «it is not a diagnosis» |
-| Pin / Close | Pin (resta ferma dove l'hai messa) / Close, più Menu |
+| Il pannello compare dove serve, la sfera lo genera | Un tap evoca il display nel punto toccato: le particelle escono dalla sfera e compongono tutta la scheda |
+| Pannello fermo nella stanza, sfera che segue la telecamera e può coprirlo | Uguale: display ancorato con una lieve oscillazione, sfera con inseguimento morbido |
+| Pin / Close | Pin (i tap non spostano più il display) / Close (rientra nella sfera), più Menu |
 | Sottotitoli a karaoke aggiunti in montaggio | Sottotitoli a karaoke dentro la scena, visibili anche nel visore |
 
 Due cose che ho aggiunto perché in palestra servono e nel reel non ci sono:

@@ -36,9 +36,8 @@ export class Brain {
   open(id) {
     const next = this.topics[id]; if (!next) return;
     if (this.active && this.active !== next && this.active.busy) return this.say('A test is running. Stop it first.');
-    const first = !this.active;
     this.active = next; this.lastTarget = null;
-    this.stage.show(next, first);
+    this.stage.show(next);
     next.enter?.();
   }
 
@@ -55,8 +54,8 @@ export class Brain {
   }
 
   togglePin() {
-    this.pinned = !this.pinned; this.stage.setPinned(this.pinned); this.refresh();
-    this.say(this.pinned ? 'Pinned here. I will stay in this spot.' : 'Unpinned. I will follow when you turn away.');
+    this.pinned = !this.pinned; this.refresh();
+    this.say(this.pinned ? 'Pinned. Taps will not move the display.' : 'Unpinned. Tap an empty spot to move the display there.');
   }
 
   voiceOn() { return this.voice.handsFree; }
@@ -94,7 +93,7 @@ export class Brain {
     if (/\b(menu|home|topics|what can you do|help)\b/.test(n)) return this.open('home');
     if (/\bunpin\b/.test(n)) { if (this.pinned) this.togglePin(); return; }
     if (/\b(pin|stay (here|there))\b/.test(n)) { if (!this.pinned) this.togglePin(); return; }
-    if (/\b(come here|recenter|recentre|follow me|over here)\b/.test(n)) { this.stage.recenter(); return this.say('Here I am.'); }
+    if (/\b(come here|recenter|recentre|follow me|over here|in front of me)\b/.test(n)) { if (this.active) this.stage.recenter(); return this.say(this.active ? 'Here it is.' : 'Tap anywhere and I will open the display there.'); }
     if (/\b(mute|be quiet|silence)\b/.test(n)) { if (!this.voice.muted) this.toggleSound(); return; }
     if (/\bunmute\b|\bsound on\b/.test(n)) { if (this.voice.muted) this.toggleSound(); return; }
     if (/\bexample patient\b/.test(n)) return this.topics.home.press({ id: 'example' });
