@@ -104,20 +104,33 @@ export class Stage {
 
   // ---- the orb follows the camera -------------------------------------------------
   _followOrb(dt) {
-    const depth = this.reach * 0.76, t = this.time;
+    const depth = this.reach * 0.76, t = this.time, tan = this._tan();
     const target = this._viewPoint(-0.48, 0.26, depth, Math.tan(rad(13)), Math.tan(rad(7)), this._v);
-    // It never hangs dead still: a slow drift of a centimetre or two around its spot.
-    this._f.set(Math.sin(t * 0.83) * 0.012, Math.sin(t * 1.21 + 1.3) * 0.016, Math.sin(t * 0.57 + 0.4) * 0.008).applyQuaternion(this.camera.getWorldQuaternion(this._q));
+    // It never hangs dead still: a slow drift of a few centimetres around its spot.
+    this._f.set(Math.sin(t * 0.83) * 0.022, Math.sin(t * 1.21 + 1.3) * 0.026, Math.sin(t * 0.57 + 0.4) * 0.012).applyQuaternion(this.camera.getWorldQuaternion(this._q));
     target.add(this._f);
     const p = this.orb.group.position;
-    if (!this._orbReady || p.distanceTo(target) > 3) { p.copy(target); this._orbVel.set(0, 0, 0); this._orbReady = true; return; }
-    // Critically damped spring: it trails the camera, then eases back to its spot without overshoot.
-    const omega = 6.5;
+    if (!this._orbReady || p.distanceTo(target) > 4) { p.copy(target); this._orbVel.set(0, 0, 0); this._orbReady = true; return; }
+    // A soft, slightly under-damped spring. When the camera moves the orb is left behind in the room,
+    // then glides after it and settles with a small overshoot: you see it follow. The leash keeps
+    // it from being lost off-screen on a fast turn: the further it falls behind, the harder it is pulled.
+    const omega = 2.6, zeta = 0.62;
+    const leash = depth * Math.min(tan.x, 0.6) * 0.75;
     for (let left = Math.min(dt, 0.1); left > 0; left -= 1 / 120) {
       const h = Math.min(left, 1 / 120);
-      this._f.copy(target).sub(p).multiplyScalar(omega * omega).addScaledVector(this._orbVel, -2 * omega);
+      this._f.copy(target).sub(p);
+      const pull = 1 + (this._f.length() / leash) ** 2;
+      this._f.multiplyScalar(omega * omega * pull).addScaledVector(this._orbVel, -2 * zeta * omega * Math.sqrt(pull));
       this._orbVel.addScaledVector(this._f, h);
       p.addScaledVector(this._orbVel, h);
+    }
+    // However fast the turn, most of the orb stays in view: the edge of the screen carries it along.
+    // (Only while it is in front of the camera: after an about-turn the spring alone brings it round.)
+    const local = this.camera.worldToLocal(this._f.copy(p)), z = -local.z;
+    const lx = z * tan.x * 0.88, ly = z * tan.y * 0.84;
+    if (z > 0.1 && (Math.abs(local.x) > lx || Math.abs(local.y) > ly)) {
+      local.x = THREE.MathUtils.clamp(local.x, -lx, lx); local.y = THREE.MathUtils.clamp(local.y, -ly, ly);
+      p.copy(this.camera.localToWorld(local));
     }
   }
 

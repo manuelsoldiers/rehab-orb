@@ -46,8 +46,8 @@ export class Home {
     TILES.forEach((t, i) => {
       const x = PAD + i * (tw + gap), id = `open:${t.id}`, on = kit.isHover(id);
       roundRect(c, x, ty, tw, th, 22);
-      c.fillStyle = on ? C.pillHover : 'rgba(26, 38, 56, 0.9)'; c.fill();
-      c.strokeStyle = on ? C.cyan : C.edge; c.lineWidth = 2; c.stroke();
+      c.fillStyle = on ? C.pillHover : C.tile; c.fill();
+      c.strokeStyle = on ? C.cyan : C.pillEdge; c.lineWidth = 2; c.stroke();
       this.glyph(d, t.id, x + 28, ty + 28, tw - 56, 92);
       kit.text(c, t.name, x + 26, ty + 164, { size: 28, weight: 700 });
       kit.wrap(c, t.line, x + 26, ty + 196, tw - 48, { size: 20, color: C.dim, lh: 26 });

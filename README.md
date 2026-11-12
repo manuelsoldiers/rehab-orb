@@ -12,7 +12,9 @@ Interfaccia, voce e contenuti sono in **inglese**.
 
 Sono due oggetti con due comportamenti diversi, come nel reel.
 
-- **All'avvio c'è solo la sfera.** Segue la telecamera con un movimento morbido: resta un po' indietro quando ti giri, poi torna al suo posto, e non sta mai del tutto ferma. Può passare davanti al display.
+- **All'avvio c'è solo la sfera.** Segue la telecamera in modo evidente: quando ti giri resta indietro nella stanza, poi ti raggiunge scivolando e si assesta con un piccolo rimbalzo, in circa un secondo. Non sta mai del tutto ferma, e in una rotazione veloce il bordo dello schermo la trascina, così non esce dall'inquadratura. Può passare davanti al display.
+- **La sfera è un volume.** Ha un guscio esterno di nastri luminosi illuminato dall'alto a sinistra, con il bordo acceso e due riflessi; attraverso il guscio si vedono il suo lato lontano, un guscio interno che gira al contrario e un nucleo luminoso. Un anello sottile con una perla le orbita intorno, passando davanti e dietro.
+- **Sfera e display sono ologrammi.** Sono fatti di luce e ci si vede attraverso: il display ha un fondo semitrasparente, il bordo luminoso, righe di scansione sottili, una fascia di luce che lo attraversa ogni tanto e un leggero tremolio. I testi hanno una propria ombra per restare leggibili anche su uno sfondo chiaro.
 - **Il display si evoca con un tap.** Compare nel punto esatto che tocchi: le particelle escono dalla sfera, ne disegnano bordi, testi e grafico, e poi la scheda diventa solida. Lo stesso succede se chiedi un test a voce: in quel caso compare davanti a te.
 - **Il display resta dov'è.** È ancorato nella stanza, leggermente ruotato verso di te, e oscilla di pochi millimetri su e giù. Un tap su un punto vuoto lo sposta lì; con **Pin** i tap non lo spostano più. **Close** lo fa rientrare nella sfera.
 - Se la sfera copre un pulsante, il tap va comunque al pulsante.

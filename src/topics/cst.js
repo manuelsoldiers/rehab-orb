@@ -225,7 +225,7 @@ export class ChairStand {
       const bx = x0 + (i % cols) * (bw + gap), by = 366 + Math.floor(i / cols) * 104;
       if (i < this.reps) {
         d.fillStyle = C.ink; d.fillRect(bx, by, bw, 84);
-        kit.text(d, String(i + 1), bx + bw / 2, by + 56, { size: 34, weight: 700, color: '#0b1522', align: 'center' });
+        kit.text(d, String(i + 1), bx + bw / 2, by + 56, { size: 34, weight: 700, color: '#0b1522', align: 'center', flat: true });
       } else if (i < cols) {
         c.strokeStyle = C.grid; c.lineWidth = 2; c.strokeRect(bx, by, bw, 84);
       }

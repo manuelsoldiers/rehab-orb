@@ -57,6 +57,8 @@ Una sfera luminosa sospesa in una camera da letto vera risponde a una domanda fa
 | Pin / Close | Pin (i tap non spostano più il display) / Close (rientra nella sfera), più Menu |
 | Sottotitoli a karaoke aggiunti in montaggio | Sottotitoli a karaoke dentro la scena, visibili anche nel visore |
 
+Dove mi sono allontanato dal reel, su richiesta dell'owner: sfera e display hanno un aspetto da **ologramma** (semitrasparenti, con righe di scansione), e la sfera ha un **anello orbitante** e strati interni visibili per sembrare un volume e non un disco.
+
 Due cose che ho aggiunto perché in palestra servono e nel reel non ci sono:
 
 - **Tutto si può fare anche solo puntando.** In una stanza rumorosa, o su un visore senza riconoscimento vocale, ogni comando ha il suo pulsante sulla scheda.

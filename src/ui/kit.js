@@ -5,17 +5,23 @@
 export const W = 1280;            // canvas width in px; the panel is PANEL_W metres wide
 export const TOP = 64;            // strip above the card that holds the Menu / Pin / Close pills
 export const PAD = 48;
+export const INSET = 12;          // the card sits inside the canvas, so its glowing edge is not cut off
 
 export const C = {
-  card: 'rgba(13, 21, 33, 0.94)',
-  drawer: 'rgba(17, 27, 41, 0.94)',
-  edge: 'rgba(160, 190, 230, 0.18)',
-  pill: 'rgba(30, 42, 60, 0.92)',
-  pillHover: 'rgba(58, 78, 108, 0.96)',
+  // Hologram surfaces: you see the room through them. Text stays readable thanks to its own shadow.
+  card: 'rgba(6, 20, 38, 0.56)',
+  drawer: 'rgba(8, 26, 48, 0.56)',
+  edge: 'rgba(120, 205, 255, 0.62)',
+  glow: 'rgba(80, 185, 255, 0.60)',
+  tile: 'rgba(24, 62, 104, 0.36)',
+  pill: 'rgba(14, 42, 74, 0.52)',
+  pillEdge: 'rgba(140, 205, 255, 0.42)',
+  pillHover: 'rgba(40, 104, 168, 0.68)',
+  shadow: 'rgba(1, 8, 18, 0.85)',
   text: '#f4f7fb',
-  dim: '#93a3b8',
-  faint: '#60708a',
-  grid: 'rgba(165, 190, 220, 0.24)',
+  dim: '#b3c3d8',
+  faint: '#8b9db6',
+  grid: 'rgba(170, 205, 240, 0.34)',
   cyan: '#67c9ff',
   amber: '#ffc552',
   red: '#ff7062',
@@ -56,7 +62,9 @@ export class Kit {
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
     ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
     const str = upper ? String(s).toUpperCase() : String(s);
+    if (!o.flat) { ctx.shadowColor = C.shadow; ctx.shadowBlur = Math.max(4, size * 0.22); }
     ctx.fillText(str, x, y);
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
     const w = ctx.measureText(str).width;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     return w;
@@ -90,9 +98,11 @@ export class Kit {
   // ---- surfaces ---------------------------------------------------------
   card(y0, y1, fill = C.card) {
     const c = this.c;
-    rr(c, 1, y0, W - 2, y1 - y0, 30);
+    rr(c, INSET, y0, W - 2 * INSET, y1 - y0, 30);
     c.fillStyle = fill; c.fill();
-    c.strokeStyle = C.edge; c.lineWidth = 2; c.stroke();
+    c.shadowColor = C.glow; c.shadowBlur = 16;                 // the edge is light, and it spills a little
+    c.strokeStyle = C.edge; c.lineWidth = 2.5; c.stroke();
+    c.shadowColor = 'transparent'; c.shadowBlur = 0;
   }
 
   // ---- interactive ------------------------------------------------------
@@ -116,11 +126,13 @@ export class Kit {
     const { active = false, accent = C.cyan, size = 26, extra } = o;
     const c = this.c, hot = this.isHover(id);
     rr(c, x, y, w, h, Math.min(h / 2, 26));
+    c.globalAlpha = active ? 0.86 : 1;
     c.fillStyle = active ? accent : (hot ? C.pillHover : C.pill);
     c.fill();
-    c.strokeStyle = active ? accent : (hot ? accent : C.edge); c.lineWidth = 2; c.stroke();
+    c.globalAlpha = 1;
+    c.strokeStyle = active ? accent : (hot ? accent : C.pillEdge); c.lineWidth = 2; c.stroke();
     this.text(c, label, x + w / 2, y + h / 2 + size * 0.35, {
-      size, weight: 600, align: 'center', color: active ? '#08121e' : C.text,
+      size, weight: 600, align: 'center', color: active ? '#04101c' : C.text, flat: active,
     });
     this.region(id, x, y, w, h, { kind: 'chip', ...extra });
   }
@@ -141,9 +153,9 @@ export class Kit {
   // Pills above the card + card body + title block. Returns nothing; views draw below y = 200.
   frame({ title, sub, value, delta, deltaColor = C.cyan, cardBottom, pinned, home = true }) {
     const c = this.c;
-    if (home) this.chip('‹ Menu', 0, 6, 132, 46, 'menu', { size: 22 });
-    this.chip(pinned ? 'Pinned' : 'Pin', W - 256, 6, 120, 46, 'pin', { size: 22, active: pinned });
-    this.chip('Close', W - 124, 6, 124, 46, 'close', { size: 22 });
+    if (home) this.chip('‹ Menu', INSET, 6, 132, 46, 'menu', { size: 22 });
+    this.chip(pinned ? 'Pinned' : 'Pin', W - INSET - 256, 6, 120, 46, 'pin', { size: 22, active: pinned });
+    this.chip('Close', W - INSET - 124, 6, 124, 46, 'close', { size: 22 });
     this.card(TOP, cardBottom);
     this.text(c, title, PAD, TOP + 78, { size: 54, weight: 700, upper: true });
     if (sub) this.text(c, sub, PAD + 2, TOP + 112, { size: 21, color: C.dim, spacing: 2.5, upper: true });

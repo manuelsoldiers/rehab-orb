@@ -18,6 +18,29 @@ function makeLayer() {
   return { canvas, ctx, tex, mat, mesh };
 }
 
+// The hologram layer: fine scanlines that crawl upwards and a band of light that sweeps down now and
+// then, both masked by the card's own shape. It only adds light, so text underneath stays as it is.
+const HOLO_VERT = /* glsl */`
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const HOLO_FRAG = /* glsl */`
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 uRepeat;
+uniform vec2 uOffset;
+uniform float uTime;
+uniform float uOpacity;
+uniform float uRows;
+void main() {
+  float mask = texture2D(map, vUv * uRepeat + uOffset).a;
+  float scan = pow(0.5 + 0.5 * sin((vUv.y * uRows + uTime * 0.9) * 6.28318), 4.0);
+  float pos = 1.25 - fract(uTime * 0.085) * 1.5;                     // a band that travels top to bottom
+  float sweep = smoothstep(0.10, 0.0, abs(vUv.y - pos));
+  float a = mask * uOpacity * (0.045 + scan * 0.085 + sweep * 0.16);
+  gl_FragColor = vec4(vec3(0.38, 0.80, 1.0), a);
+}`;
+
 // A world-anchored card. The view draws on two canvases (chrome + data); the panel shows the
 // top `height` pixels of each, anchored at its top-left corner so drawers grow downwards.
 export class Panel {
@@ -29,7 +52,16 @@ export class Panel {
     this.chrome.mesh.renderOrder = 10;
     this.data.mesh.renderOrder = 11;
     this.data.mesh.position.z = 0.002;
-    this.group.add(this.chrome.mesh, this.data.mesh);
+    this.holoUniforms = {
+      map: { value: this.chrome.tex }, uRepeat: { value: new THREE.Vector2(1, 1) }, uOffset: { value: new THREE.Vector2() },
+      uTime: { value: 0 }, uOpacity: { value: 0 }, uRows: { value: 60 },
+    };
+    this.holo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
+      vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG, uniforms: this.holoUniforms,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    this.holo.position.z = 0.001; this.holo.renderOrder = 10.5;
+    this.group.add(this.chrome.mesh, this.holo, this.data.mesh);
     this.group.visible = false;
 
     this.height = 800;
@@ -58,6 +90,11 @@ export class Panel {
       layer.tex.repeat.set(1, h / MAX_H);
       layer.tex.offset.set(0, v0);
     }
+    this.holo.scale.set(PANEL_W, ph, 1);
+    this.holo.position.x = PANEL_W / 2; this.holo.position.y = -ph / 2;
+    this.holoUniforms.uRepeat.value.set(1, h / MAX_H);
+    this.holoUniforms.uOffset.value.set(0, v0);
+    this.holoUniforms.uRows.value = h / 13;                           // one scanline every 13 canvas px (8 mm)
   }
 
   get physicalHeight() { return this.height * PX; }
@@ -135,7 +172,7 @@ export class Panel {
       if (!whole) { bright.push(n); continue; }
       const i = n * 4, x = n % sw;
       if (Math.max(px[i], px[i + 1], px[i + 2]) > 150) bright.push(n);
-      else if ((x > 0 && alpha(n - 1) < 40) || (x < sw - 1 && alpha(n + 1) < 40) || (n >= sw && alpha(n - sw) < 40) || (n < total - sw && alpha(n + sw) < 40)) edge.push(n);
+      else if ((x > 0 && alpha(n - 1) < a * 0.7) || (x < sw - 1 && alpha(n + 1) < a * 0.7) || (n >= sw && alpha(n - sw) < a * 0.7) || (n < total - sw && alpha(n + sw) < a * 0.7)) edge.push(n);
       else fill.push(n);
     }
     const out = [];
@@ -157,8 +194,11 @@ export class Panel {
     if (this.openTarget === 0 && this.open < 0.01) { this.open = 0; this.group.visible = false; }
     const want = this.holdData ? 0 : this.revealTarget;
     this.reveal = ease(this.reveal, want, want > this.reveal ? 7 : 16);
-    this.chrome.mat.opacity = this.open;
+    const flicker = 0.972 + 0.028 * Math.sin(now * 19.0) * Math.sin(now * 6.1);   // a projection, not a sheet of glass
+    this.chrome.mat.opacity = this.open * flicker;
     this.data.mat.opacity = this.open * this.reveal;
+    this.holoUniforms.uTime.value = now;
+    this.holoUniforms.uOpacity.value = this.open;
     this.group.scale.setScalar(0.94 + 0.06 * this.open);
     if (this.dirty && now - this._lastDraw > 0.05) { this._lastDraw = now; this.redraw(); }
   }
