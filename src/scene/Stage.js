@@ -4,21 +4,27 @@ import { Panel, PANEL_W } from './Panel.js';
 import { Particles } from './Particles.js';
 import { Caption } from './Caption.js';
 import { Pointer } from '../input/Pointer.js';
+import { Ground } from './Ground.js';
 
 const ORB_R = 0.1;
 const TAP_Y = 0.27;          // metres from the top of the canvas to the centre of a base card: the tap lands there
 const XR_REACH = 1.25;       // metres from the eyes to a summoned display, in AR
 const rad = THREE.MathUtils.degToRad;
 
-// The stage owns the three.js scene. Two things live in it, and they behave differently on purpose:
-//   the orb     follows the camera, a little late and never quite still: it is the assistant;
-//   the display stays in the room where it was summoned, floating a few millimetres up and down.
+// The stage owns the three.js scene. Two things live in it:
+//   the display stays in the room where it was summoned, floating a few millimetres up and down;
+//   the orb     follows the camera, a little late and never quite still, until a display is placed:
+//               then it settles beside the display and stays there too, so both are anchored in the
+//               room and you can walk round them. When the display is closed it follows you again.
+// Both cast shadows on the floor (see Ground.js).
 export class Stage {
   constructor(canvas) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.xr.enabled = true;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.02, 40);
@@ -53,6 +59,13 @@ export class Stage {
     this.voiceState = 'idle';
     this.time = 0;
     this.look = { yaw: 0, pitch: 0 }; // preview only: where the "phone" points
+    this.walk = new THREE.Vector3();  // preview only: where the "phone" is (WASD / arrow keys)
+    this.walkInput = { x: 0, z: 0 };
+    this.ground = new Ground(this.scene);
+    this.ground.setPanelTexture(this.panel.chrome.tex, this.panel.dataUniforms.uRepeat.value, this.panel.dataUniforms.uOffset.value);
+    this.EYE = 1.35;                  // without tracking, the phone is assumed to be this high above the floor
+    this.hitSource = null;            // AR: a hit-test source that finds the real floor
+    this._floorKnown = false;
     this.zoom = 1;
     this.gyro = null;                 // set by enableGyro()
     this._xrFrames = 0; this._orbReady = false; this._replace = false;
@@ -103,11 +116,20 @@ export class Stage {
   }
 
   // ---- the orb follows the camera -------------------------------------------------
+  // Beside the display, on its left, a little in front of it: where the orb rests once it is anchored.
+  get anchored() { return this.placed && this.panel.isOpen && !this.orbGone; }
+
   _followOrb(dt) {
-    const depth = this.reach * 0.76, t = this.time, tan = this._tan();
-    const target = this._viewPoint(-0.48, 0.26, depth, Math.tan(rad(13)), Math.tan(rad(7)), this._v);
-    // It never hangs dead still: a slow drift of a few centimetres around its spot.
-    this._f.set(Math.sin(t * 0.83) * 0.022, Math.sin(t * 1.21 + 1.3) * 0.026, Math.sin(t * 0.57 + 0.4) * 0.012).applyQuaternion(this.camera.getWorldQuaternion(this._q));
+    const depth = this.reach * 0.76, t = this.time, tan = this._tan(), anchored = this.anchored;
+    let target;
+    if (anchored) {
+      target = this.anchor.localToWorld(this._v.set(-PANEL_W / 2 - 0.15, TAP_Y - 0.07, 0.10));
+      this._f.set(Math.sin(t * 0.83) * 0.012, Math.sin(t * 1.1 + 1.3) * 0.02, Math.sin(t * 0.57 + 0.4) * 0.008);   // it floats
+    } else {
+      target = this._viewPoint(-0.48, 0.26, depth, Math.tan(rad(13)), Math.tan(rad(7)), this._v);
+      // It never hangs dead still: a slow drift of a few centimetres around its spot.
+      this._f.set(Math.sin(t * 0.83) * 0.022, Math.sin(t * 1.21 + 1.3) * 0.026, Math.sin(t * 0.57 + 0.4) * 0.012).applyQuaternion(this.camera.getWorldQuaternion(this._q));
+    }
     target.add(this._f);
     const p = this.orb.group.position;
     if (!this._orbReady || p.distanceTo(target) > 4) { p.copy(target); this._orbVel.set(0, 0, 0); this._orbReady = true; return; }
@@ -119,7 +141,7 @@ export class Stage {
     for (let left = Math.min(dt, 0.1); left > 0; left -= 1 / 120) {
       const h = Math.min(left, 1 / 120);
       this._f.copy(target).sub(p);
-      const pull = 1 + (this._f.length() / leash) ** 2;
+      const pull = anchored ? 1 : 1 + (this._f.length() / leash) ** 2;
       this._f.multiplyScalar(omega * omega * pull).addScaledVector(this._orbVel, -2 * zeta * omega * Math.sqrt(pull));
       this._orbVel.addScaledVector(this._f, h);
       p.addScaledVector(this._orbVel, h);
@@ -128,7 +150,7 @@ export class Stage {
     // (Only while it is in front of the camera: after an about-turn the spring alone brings it round.)
     const local = this.camera.worldToLocal(this._f.copy(p)), z = -local.z;
     const lx = z * tan.x * 0.88, ly = z * tan.y * 0.84;
-    if (z > 0.1 && (Math.abs(local.x) > lx || Math.abs(local.y) > ly)) {
+    if (!anchored && z > 0.1 && (Math.abs(local.x) > lx || Math.abs(local.y) > ly)) {
       local.x = THREE.MathUtils.clamp(local.x, -lx, lx); local.y = THREE.MathUtils.clamp(local.y, -ly, ly);
       p.copy(this.camera.localToWorld(local));
     }
@@ -227,7 +249,54 @@ export class Stage {
   get busy() { return this.swarm.active; }
 
   // Entering or leaving AR changes the coordinate frame: an open display is put back in front.
-  frameChanged() { this._xrFrames = 0; this._orbReady = false; this._replace = true; this.resize(); }
+  frameChanged() {
+    this._xrFrames = 0; this._orbReady = false; this._replace = true;
+    this._floorKnown = false; this._floorMeasured = false;
+    if (!this.renderer.xr.isPresenting) this.hitSource = null;
+    this.resize();
+  }
+
+  // ---- the floor ----------------------------------------------------------------
+  // Without tracking the floor is assumed EYE metres below the phone. In AR it starts from the
+  // session's floor (or the same guess) and is then measured: whenever the device looks at a level
+  // surface well below it, that surface is the floor.
+  _updateFloor(xr) {
+    if (!xr) { this.ground.y = this.walk.y - this.EYE; return; }
+    const camY = this.camera.getWorldPosition(this._v).y;
+    if (!this._floorKnown) { this.ground.y = this.xrFloor ? 0 : camY - this.EYE; this._floorKnown = true; }
+    const frame = this.renderer.xr.getFrame(), ref = this.renderer.xr.getReferenceSpace();
+    if (!frame || !this.hitSource || !ref) return;
+    for (const hit of frame.getHitTestResults(this.hitSource)) {
+      const pose = hit.getPose(ref); if (!pose) continue;
+      const { position: pos, orientation: o } = pose.transform;
+      const up = this._f.set(0, 1, 0).applyQuaternion(this._q.set(o.x, o.y, o.z, o.w));
+      if (up.y > 0.92 && pos.y < camY - 0.5) {
+        this.ground.y += (pos.y - this.ground.y) * (this._floorMeasured ? 0.15 : 1);
+        this._floorMeasured = true;
+        break;
+      }
+    }
+  }
+
+  _updateGround() {
+    const orb = this.orb.group, panelOn = this.panel.group.visible && this.panel.open > 0.3 && !this.panel.locked;
+    const focus = this._shadowFocus || (this._shadowFocus = new THREE.Vector3());
+    focus.copy(orb.position);
+    let bottom = null, corners = null;
+    if (panelOn) {
+      const h = this.panel.height;
+      corners = [[0, 0], [1280, 0], [1280, h], [0, h]].map(([x, y]) => this.panel.toLocal(x, y, this.scene, new THREE.Vector3(), 0));
+      const c = this.panel.toLocal(640, this.panel.height / 2, this.scene, this._v.clone());
+      focus.lerp(c, 0.6);
+      const b = this.panel.toLocal(640, this.panel.height, this.scene, this._v.clone());
+      bottom = { x: b.x, y: b.y, z: b.z, yaw: this.anchor.rotation.y };
+    }
+    // The scene faces the user the way the display did when it was summoned; with no display, the camera.
+    let yaw = this.anchor.rotation.y;
+    if (!this.placed) { this.camera.getWorldDirection(this._f); yaw = Math.atan2(-this._f.x, -this._f.z); }
+    this.ground.grid.visible = this.mode === 'preview';
+    this.ground.update(focus, orb, this.orb.uniforms.uA.value, bottom, yaw, corners, this.panel.open);
+  }
 
   // ---- pointing ---------------------------------------------------------------
   // The display wins over the orb: the orb may drift in front of a button, and must not swallow the tap.
@@ -271,11 +340,17 @@ export class Stage {
     this.time += dt;
     const xr = this.renderer.xr.isPresenting;
     if (!xr) {
-      this.camera.position.set(0, 0, 0);
+      if (this.walkInput.x || this.walkInput.z) {                     // preview: walk, in the direction you look
+        const s = 1.1 * dt, c = Math.cos(this.look.yaw), n = Math.sin(this.look.yaw);
+        this.walk.x += (this.walkInput.x * c + this.walkInput.z * n) * s;
+        this.walk.z += (-this.walkInput.x * n + this.walkInput.z * c) * s;
+      }
+      this.camera.position.copy(this.walk);
       if (this.gyro) this.gyro(this.camera); else this.camera.rotation.set(this.look.pitch, this.look.yaw, 0);
     }
     this.camera.updateMatrixWorld();
     const tracked = !xr || ++this._xrFrames > 4;         // the first AR frames carry no head pose yet
+    if (tracked) this._updateFloor(xr);
     if (tracked) {
       this._followOrb(dt);
       this._followCaption(dt);
@@ -297,6 +372,7 @@ export class Stage {
     this.caption.update(dt);
     this.panel.update(dt, this.time);
     this._hover();
+    this._updateGround();
     this.renderer.render(this.scene, this.camera);
   }
 }

@@ -50,8 +50,9 @@ function rr(ctx, x, y, w, h, r) {
 export class Kit {
   constructor() { this.regions = []; this.hover = null; }
 
-  begin(chrome, data, height, hover) {
-    this.c = chrome; this.d = data; this.H = height; this.hover = hover; this.regions = [];
+  begin(chrome, data, height, hover, plate = null) {
+    this.c = chrome; this.d = data; this.p = plate; this.H = height; this.hover = hover; this.regions = [];
+    if (plate) plate.clearRect(0, 0, W, plate.canvas.height);
     // Clear the whole canvas, not just the visible part: a shorter view must not leave the old one below it.
     chrome.clearRect(0, 0, W, chrome.canvas.height);
     data.clearRect(0, 0, W, data.canvas.height);
@@ -108,6 +109,12 @@ export class Kit {
   // the top and bottom edges (tabs = [top width, bottom width] as fractions of the card, 0 for none).
   card(y0, y1, fill = C.card, tabs = [0.36, 0.30]) {
     const c = this.c, x = INSET, w = W - 2 * INSET, h = y1 - y0;
+    if (this.p) {                                              // the back face of the slab: its shape and edge
+      const p = this.p;
+      rr(p, x, y0, w, h, 44);
+      p.fillStyle = 'rgba(110, 190, 198, 0.13)'; p.fill();
+      p.strokeStyle = 'rgba(140, 228, 236, 0.55)'; p.lineWidth = 2; p.stroke();
+    }
     rr(c, x, y0, w, h, 44);
     c.fillStyle = fill; c.fill();
     c.save();
