@@ -21,7 +21,7 @@ export class Pointer {
       const c = renderer.xr.getController(i);
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]),
-        new THREE.LineBasicMaterial({ color: 0xffc552, transparent: true, opacity: 0.85 }),
+        new THREE.LineBasicMaterial({ color: 0xbff6fb, transparent: true, opacity: 0.8 }),
       );
       line.visible = false; line.renderOrder = 30;
       c.add(line);

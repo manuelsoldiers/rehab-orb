@@ -39,7 +39,7 @@ export class Stage {
 
     this.cursor = new THREE.Mesh(
       new THREE.PlaneGeometry(0.014, 0.014),
-      new THREE.MeshBasicMaterial({ color: 0xffc552, depthTest: false, transparent: true }),
+      new THREE.MeshBasicMaterial({ color: 0x74e6f2, depthTest: false, transparent: true }),
     );
     this.cursor.rotation.z = Math.PI / 4; this.cursor.renderOrder = 28; this.cursor.visible = false;
     this.panel.group.add(this.cursor);
