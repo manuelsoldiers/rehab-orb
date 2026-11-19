@@ -5,6 +5,9 @@ export const PANEL_W = 0.8;                 // metres
 const PX = PANEL_W / W;                     // metres per canvas pixel
 const MAX_H = 1500;
 const _m = new THREE.Matrix4(), _o = new THREE.Vector3(), _d = new THREE.Vector3();
+// The display is a slab with depth: the back face of the glass, the glass, and the data floating in
+// front of it. Moving round it, the three layers slide apart.
+const Z_BACK = -0.016, Z_DATA = 0.011;
 
 function makeLayer() {
   const canvas = document.createElement('canvas');
@@ -13,7 +16,7 @@ function makeLayer() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
   return { canvas, ctx, tex, mat, mesh };
 }
@@ -65,6 +68,40 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+// The back face of the glass: the card's shape only (the kit draws it on its own canvas), a faint teal.
+const PLATE_FRAG = /* glsl */`
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 uRepeat;
+uniform vec2 uOffset;
+uniform float uOpacity;
+void main() {
+  vec4 c = texture2D(map, vUv * uRepeat + uOffset);
+  gl_FragColor = vec4(c.rgb, c.a * uOpacity);
+  #include <colorspace_fragment>
+}`;
+
+// Shadow pass for the glass layers: only what is solid (outline, text, the chart, the light bars) casts
+// a shadow here. The glass itself casts a light, even shade, drawn by Ground.js as a projection.
+const SHADOW_VERT = /* glsl */`
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const SHADOW_FRAG = /* glsl */`
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 uRepeat;
+uniform vec2 uOffset;
+uniform float uOpacity;
+uniform float uWipe;
+void main() {
+  float a = texture2D(map, vUv * uRepeat + uOffset).a * uOpacity;
+  if (vUv.x > uWipe * 1.14 - 0.07) a = 0.0;
+  if (a < 0.75) discard;
+  gl_FragColor = vec4(1.0);                 // only depth matters; the pass still expects a colour
+}`;
+
 // A world-anchored card. The view draws on two canvases (chrome + data); the panel shows the
 // top `height` pixels of each, anchored at its top-left corner so drawers grow downwards.
 export class Panel {
@@ -73,9 +110,12 @@ export class Panel {
     this.kit = new Kit();
     this.chrome = makeLayer();
     this.data = makeLayer();
+    this.plate = makeLayer();
     this.chrome.mesh.renderOrder = 10;
     this.data.mesh.renderOrder = 11;
-    this.data.mesh.position.z = 0.002;
+    this.data.mesh.position.z = Z_DATA;
+    this.plate.mesh.position.z = Z_BACK;
+    this.plate.mesh.renderOrder = 9.5;
     this.holoUniforms = {
       map: { value: this.chrome.tex }, uRepeat: { value: new THREE.Vector2(1, 1) }, uOffset: { value: new THREE.Vector2() },
       uTime: { value: 0 }, uOpacity: { value: 0 }, uRows: { value: 60 }, uCols: { value: W / 13 },
@@ -88,10 +128,24 @@ export class Panel {
       map: { value: this.data.tex }, uRepeat: { value: this.holoUniforms.uRepeat.value }, uOffset: { value: this.holoUniforms.uOffset.value },
       uOpacity: { value: 0 }, uWipe: { value: 0 },
     };
-    this.data.mat = new THREE.ShaderMaterial({ vertexShader: HOLO_VERT, fragmentShader: DATA_FRAG, uniforms: this.dataUniforms, transparent: true, depthWrite: false });
+    this.data.mat = new THREE.ShaderMaterial({ vertexShader: HOLO_VERT, fragmentShader: DATA_FRAG, uniforms: this.dataUniforms, transparent: true, depthWrite: false, side: THREE.DoubleSide });
     this.data.mesh.material = this.data.mat;
+    this.plateUniforms = { map: { value: this.plate.tex }, uRepeat: this.dataUniforms.uRepeat, uOffset: this.dataUniforms.uOffset, uOpacity: { value: 0 } };
+    this.plate.mat = new THREE.ShaderMaterial({ vertexShader: HOLO_VERT, fragmentShader: PLATE_FRAG, uniforms: this.plateUniforms, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    this.plate.mesh.material = this.plate.mat;
+    this.holo.material.side = THREE.DoubleSide;
     this.holo.position.z = 0.001; this.holo.renderOrder = 10.5;
-    this.group.add(this.chrome.mesh, this.holo, this.data.mesh);
+
+    // Shadows (see Ground.js): the glass and the data each cast theirs.
+    const shadowOf = (tex, opacity, wipe) => new THREE.ShaderMaterial({
+      vertexShader: SHADOW_VERT, fragmentShader: SHADOW_FRAG, side: THREE.DoubleSide,
+      uniforms: { map: { value: tex }, uRepeat: this.dataUniforms.uRepeat, uOffset: this.dataUniforms.uOffset, uOpacity: opacity, uWipe: wipe },
+    });
+    this.chromeShadowOpacity = { value: 0 };
+    this.chrome.mesh.customDepthMaterial = shadowOf(this.chrome.tex, this.chromeShadowOpacity, { value: 1 });
+    this.data.mesh.customDepthMaterial = shadowOf(this.data.tex, this.dataUniforms.uOpacity, this.dataUniforms.uWipe);
+    for (const m of [this.chrome.mesh, this.data.mesh]) { m.castShadow = true; m.material.shadowSide = THREE.DoubleSide; }
+    this.group.add(this.plate.mesh, this.chrome.mesh, this.holo, this.data.mesh);
     this.group.visible = false;
 
     this.height = 800;
@@ -114,7 +168,7 @@ export class Panel {
   _applyHeight(h) {
     this.height = h;
     const ph = h * PX, v0 = 1 - h / MAX_H;
-    for (const layer of [this.chrome, this.data]) {
+    for (const layer of [this.chrome, this.data, this.plate]) {
       layer.mesh.scale.set(PANEL_W, ph, 1);
       layer.mesh.position.x = PANEL_W / 2;
       layer.mesh.position.y = -ph / 2;
@@ -129,6 +183,8 @@ export class Panel {
   }
 
   get physicalHeight() { return this.height * PX; }
+
+  setShadows(on) { this.chrome.mesh.castShadow = on; this.data.mesh.castShadow = on; this.plate.mesh.visible = on; }
 
   setView(view) {
     this.view = view; this.hover = null;
@@ -145,9 +201,10 @@ export class Panel {
     if (!this.view) return;
     const h = Math.min(MAX_H, Math.round(this.view.height(this.kit)));
     if (h !== this.height) this._applyHeight(h);
-    this.kit.begin(this.chrome.ctx, this.data.ctx, h, this.hover);
+    this.kit.begin(this.chrome.ctx, this.data.ctx, h, this.hover, this.plate.ctx);
     this.view.draw(this.kit);
     this.chrome.tex.needsUpdate = true;
+    this.plate.tex.needsUpdate = true;
     this.data.tex.needsUpdate = true;
     this.dirty = false;
   }
@@ -167,8 +224,8 @@ export class Panel {
   }
 
   // Canvas pixel → position in the space of `ancestor` (an Object3D above this.group).
-  toLocal(x, y, ancestor, out = new THREE.Vector3()) {
-    out.set(x * PX, -y * PX, 0.004);
+  toLocal(x, y, ancestor, out = new THREE.Vector3(), z = 0.004) {
+    out.set(x * PX, -y * PX, z);
     this.group.updateWorldMatrix(true, false);
     this.group.localToWorld(out);
     return ancestor.worldToLocal(out);
@@ -212,7 +269,7 @@ export class Panel {
       const step = Math.max(1, list.length / count);
       for (let f = 0; f < list.length; f += step) {
         const n = list[f | 0];
-        out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor));
+        out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor, undefined, whole ? 0.004 : Z_DATA));
       }
     };
     // Summoned, the card is outlined first: most of the swarm goes to its edges.
@@ -228,6 +285,8 @@ export class Panel {
     // Drawn in at an even pace (about 0.9 s across), taken away quickly.
     this.reveal = want > this.reveal ? Math.min(want, this.reveal + dt / 0.9) : ease(this.reveal, want, 16);
     this.chrome.mat.opacity = this.open;
+    this.chromeShadowOpacity.value = this.open;
+    this.plateUniforms.uOpacity.value = this.open;
     this.dataUniforms.uOpacity.value = this.open * Math.min(1, this.reveal * 5);
     this.dataUniforms.uWipe.value = this.reveal;
     this.holoUniforms.uTime.value = now;

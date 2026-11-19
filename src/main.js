@@ -76,6 +76,20 @@ $('ask').addEventListener('submit', (e) => {
 $('btn-mic').disabled = !voice.sttSupported;
 $('btn-mic').addEventListener('click', () => { brain.toggleVoice(); $('btn-mic').classList.toggle('on', voice.handsFree); });
 
+// Preview: walk round the scene with WASD or the arrow keys, to see its depth and shadows.
+const WALK = { KeyW: ['z', -1], ArrowUp: ['z', -1], KeyS: ['z', 1], ArrowDown: ['z', 1], KeyA: ['x', -1], ArrowLeft: ['x', -1], KeyD: ['x', 1], ArrowRight: ['x', 1] };
+const held = new Set();
+const walkKeys = () => {
+  stage.walkInput.x = 0; stage.walkInput.z = 0;
+  for (const code of held) { const [axis, v] = WALK[code]; stage.walkInput[axis] += v; }
+};
+addEventListener('keydown', (e) => {
+  if (!WALK[e.code] || document.activeElement === $('say') || stage.mode !== 'preview') return;
+  e.preventDefault(); held.add(e.code); walkKeys();
+});
+addEventListener('keyup', (e) => { if (held.delete(e.code)) walkKeys(); });
+addEventListener('blur', () => { held.clear(); walkKeys(); });
+
 // Space bar = the big button of a running test (+1 lap / +1 stand).
 addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || document.activeElement === $('say')) return;
@@ -114,12 +128,20 @@ function begin() {
 
 async function enterAR() {
   const session = await navigator.xr.requestSession('immersive-ar', {
-    optionalFeatures: ['local-floor', 'hand-tracking', 'dom-overlay'],
+    optionalFeatures: ['local-floor', 'hand-tracking', 'dom-overlay', 'hit-test'],
     domOverlay: { root: $('hud') },
   });
   const floor = session.enabledFeatures ? session.enabledFeatures.includes('local-floor') : false;
   stage.renderer.xr.setReferenceSpaceType(floor ? 'local-floor' : 'local');
   await stage.renderer.xr.setSession(session);
+  stage.xrFloor = floor;
+  // The real floor, found by looking at it (see Stage._updateFloor).
+  try {
+    if (!session.enabledFeatures || session.enabledFeatures.includes('hit-test')) {
+      const viewer = await session.requestReferenceSpace('viewer');
+      stage.hitSource = await session.requestHitTestSource({ space: viewer });
+    }
+  } catch { stage.hitSource = null; }
   setMode('xr');
   stage.frameChanged();
   session.addEventListener('end', () => { setMode('preview'); stage.frameChanged(); });

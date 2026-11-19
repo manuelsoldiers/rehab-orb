@@ -125,6 +125,36 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
+// Shadow pass. The threads cast the shadow of their own lines (drawn wider than they look, so they
+// still read on the floor), the glass skin a faint shade. Fragments that cast nothing are discarded.
+const DEPTH_VERT = /* glsl */`
+varying vec3 vObj;
+void main() { vObj = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
+const THREADS_DEPTH_FRAG = /* glsl */`
+precision highp float;
+varying vec3 vObj;
+uniform float uTime;
+uniform float uSpin;
+uniform float uSeed;
+${NOISE}
+vec3 axis(float k) {
+  float a = k * 2.39996 + uSeed * 1.7 + uTime * (0.20 + 0.05 * k) * (mod(k, 2.0) < 1.0 ? 1.0 : -1.0);
+  float b = k * 1.13 + uSeed + sin(uTime * 0.31 + k) * 0.6;
+  return normalize(vec3(cos(a) * sin(b), cos(b), sin(a) * sin(b)));
+}
+void main() {
+  vec3 p = normalize(vObj);
+  float warp = (noise(p * 2.6 + vec3(uSpin * 0.25, uSeed, 0.0)) - 0.5) * 0.16;
+  float best = 1.0;
+  for (int i = 0; i < 7; i++) {
+    float k = float(i);
+    best = min(best, abs(dot(p, axis(k)) + warp * (0.6 + 0.4 * sin(k * 2.1))));
+  }
+  if (best > 0.045) discard;
+  gl_FragColor = vec4(1.0);                 // only depth matters; the pass still expects a colour
+}`;
+
 // The core: brightest where you look straight into it.
 const CORE_FRAG = /* glsl */`
 precision highp float;
@@ -210,6 +240,13 @@ export class Orb {
     this.near = sphere(radius, SKIN_FRAG, { ...add, depthWrite: true, side: THREE.FrontSide }, 15, { uFar: { value: 0 } });
     this.mesh = this.near;
 
+    // Shadows (see Ground.js).
+    for (const t of [this.threadsOuter, this.threadsInner]) {
+      t.castShadow = true;
+      t.customDepthMaterial = new THREE.ShaderMaterial({ vertexShader: DEPTH_VERT, fragmentShader: THREADS_DEPTH_FRAG, uniforms: t.material.uniforms, side: THREE.DoubleSide });
+    }
+    // (The bubble's own light shade is drawn by Ground.js, as a soft projection.)
+
     const sprite = (tex, order, opacity) => {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
       s.renderOrder = order;
@@ -238,7 +275,10 @@ export class Orb {
       glint.scale.setScalar(radius * 0.55);
       bead.add(glint);
       ring.renderOrder = 14.3; bead.renderOrder = 14.3;
-      group.add(ring, bead);
+      // The ring is a hair's breadth: its shadow comes from an invisible, thicker twin.
+      const shadowRing = new THREE.Mesh(new THREE.TorusGeometry(radius * o.r, radius * 0.03, 6, 120), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+      shadowRing.castShadow = true; bead.castShadow = true;
+      group.add(ring, bead, shadowRing);
       return { ...o, group, ring, ringMat, bead, glint };
     });
 

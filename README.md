@@ -12,11 +12,13 @@ Interfaccia, voce e contenuti sono in **inglese**.
 
 Sono due oggetti con due comportamenti diversi, come nel reel. L'aspetto segue il concept video dell'owner (`rehab-orb-concept.mp4`), che non è nella repo.
 
-- **All'avvio c'è solo la sfera.** Segue la telecamera in modo evidente: quando ti giri resta indietro nella stanza, poi ti raggiunge scivolando e si assesta con un piccolo rimbalzo, in circa un secondo. Non sta mai del tutto ferma, e in una rotazione veloce il bordo dello schermo la trascina, così non esce dall'inquadratura. Può passare davanti al display.
+- **All'avvio c'è solo la sfera, e ti segue.** Quando ti giri resta indietro nella stanza, poi ti raggiunge scivolando e si assesta con un piccolo rimbalzo. Non sta mai del tutto ferma, e in una rotazione veloce il bordo dello schermo la trascina, così non esce dall'inquadratura.
 - **La sfera è una bolla di vetro**, disegnata sul concept video: una pellicola iridescente che passa dal rosa al verde acqua al lilla verso il bordo, un nucleo bianco luminoso, sottili filamenti di luce avvolti attorno al centro, due orbite inclinate con una piccola stella ciascuna e un riflesso orizzontale da obiettivo. Aggiunge solo luce: non scurisce mai quello che c'è dietro. Il colore dice lo stato: rosa e verde acqua a riposo, verde acqua quando ascolta, magenta quando lavora, pesca e lilla quando parla.
 - **Il display è un vetro smerigliato**: grigio-verde e semitrasparente, con una griglia fine incisa, un doppio bordo sottile verde acqua con gli angoli arrotondati e due barre di luce ciano al centro dei lati alto e basso. Nei grafici gli assi sono bianchi con la freccia, le guide tratteggiate, i dati una linea corallo; i riferimenti (come il valore predetto) e la selezione sono in ciano. Quando compare, le particelle disegnano prima il contorno; poi il grafico si traccia da sinistra a destra. I testi hanno una propria ombra per restare leggibili anche su uno sfondo chiaro.
 - **Il display si evoca con un tap.** Compare nel punto esatto che tocchi: le particelle escono dalla sfera, ne disegnano bordi, testi e grafico, e poi la scheda diventa solida. Lo stesso succede se chiedi un test a voce: in quel caso compare davanti a te.
-- **Il display resta dov'è.** È ancorato nella stanza, leggermente ruotato verso di te, e oscilla di pochi millimetri su e giù. Un tap su un punto vuoto lo sposta lì; con **Pin** i tap non lo spostano più. **Close** lo fa rientrare nella sfera.
+- **Quando fissi un punto, entrambi restano lì.** Il display si ancora nel punto toccato, leggermente ruotato verso di te, e oscilla di pochi millimetri su e giù. La sfera smette di seguirti e va a posarsi alla sua sinistra, un po' più avanti, dove fluttua. Se ti sposti li vedi dalla nuova posizione, come oggetti veri nella stanza; se chiudi il display, la sfera torna a seguirti. Un tap su un punto vuoto sposta il display lì (e la sfera lo segue); con **Pin** i tap non lo spostano più. **Close** lo fa rientrare nella sfera.
+- **Hanno un'ombra.** Una luce dall'alto, un po' dal lato da cui guardavi quando hai evocato il display, proietta sul pavimento le loro ombre morbide: la trama dei filamenti e gli anelli della sfera; il bordo, i testi e il grafico del display, con un velo più leggero per il vetro. Sotto la sfera c'è una pozza della sua luce colorata, sotto il display una della barra ciano. L'ombra dice all'occhio a che altezza e a che distanza sono.
+- **Il display ha uno spessore.** È una lastra: il retro del vetro sta 1,6 cm dietro, il grafico fluttua 1,1 cm davanti. Girandoci intorno gli strati si separano, e da dietro si vede il contenuto in trasparenza, specchiato.
 - Se la sfera copre un pulsante, il tap va comunque al pulsante.
 
 ![Il risultato del cammino con lo zoom sul giro puntato](docs/screens/7-walk-lap.jpg)
@@ -73,9 +75,15 @@ Sullo schermo iniziale scegli come usarla:
 | **Enter AR** | Browser del Meta Quest; Chrome su Android con ARCore. Serve HTTPS. | Raggio del controller o della mano; sul telefono, un tocco |
 | **Camera view** | Qualsiasi telefono, anche senza WebXR (per esempio iPhone): fotocamera posteriore come sfondo e giroscopio per guardarsi intorno | Tocco |
 | **Use a photo of the room** | Qualsiasi browser: una foto al posto della fotocamera | Mouse o tocco |
-| **Preview on this screen** | Qualsiasi browser recente | Mouse o tocco. Trascina per guardarti intorno, rotella o due dita per lo zoom |
+| **Preview on this screen** | Qualsiasi browser recente | Mouse o tocco. Trascina per guardarti intorno, rotella o due dita per lo zoom, **WASD o frecce per camminare** (c'è una griglia leggera sul pavimento per leggere le distanze) |
 
 Per provarla su un visore o un telefono la pagina deve essere pubblicata su HTTPS: `npm run build` produce la cartella `dist/`, statica, che si può mettere su qualunque hosting.
+
+### Dove si può girare intorno agli oggetti
+
+- **Enter AR** (Android con Chrome, Meta Quest): sì. Il dispositivo sa dove ti trovi e dove guardi, e l'app misura l'altezza vera del pavimento appena lo inquadri.
+- **Camera view** (anche iPhone): no. Il browser sa solo come ruota il telefono, non come ti sposti: gli oggetti restano fermi mentre ti guardi intorno, ma se cammini vengono con te. Il pavimento è stimato 1,35 m sotto il telefono, quindi le ombre cadono nel punto giusto se tieni il telefono all'altezza del petto. Su iPhone, Safari non offre l'AR con tracciamento della posizione (WebXR): per averla servirebbe un'app nativa.
+- **Preview on this screen**: sì, camminando con WASD o le frecce.
 
 ### Cosa dire (o scrivere nella casella in basso)
 
