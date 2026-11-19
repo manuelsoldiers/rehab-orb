@@ -62,7 +62,7 @@ export class Stage {
       uniforms: this.dimUniforms, transparent: true, depthTest: false, depthWrite: false,
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.999, 1.0); }',
       fragmentShader: `precision mediump float; varying vec2 vUv; uniform float uDim;
-        void main() { float d = length(vUv - 0.5); gl_FragColor = vec4(0.010, 0.028, 0.060, uDim * (0.42 + 0.30 * smoothstep(0.15, 0.75, d))); }`,
+        void main() { float d = length(vUv - 0.5); gl_FragColor = vec4(0.018, 0.040, 0.044, uDim * (0.42 + 0.30 * smoothstep(0.15, 0.75, d))); }`,
     }));
     this.dim.frustumCulled = false; this.dim.renderOrder = 1;
     this.scene.add(this.dim);

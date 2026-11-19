@@ -1,13 +1,14 @@
-:root { color-scheme: dark; --ink: #f4f7fb; --dim: #93a3b8; --card: rgba(13, 21, 33, 0.86); --edge: rgba(160, 190, 230, 0.2); --cyan: #67c9ff; }
+:root { color-scheme: dark; --ink: #f6fafa; --dim: #a9bcbf; --card: rgba(26, 46, 50, 0.78); --edge: rgba(150, 228, 236, 0.32); --cyan: #74e6f2; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f15; color: var(--ink);
   font: 500 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 /* Preview backdrop: a dim room, so the orb and the glass card read the way they do over a camera feed. */
 body.preview { background:
-  radial-gradient(120% 80% at 70% 18%, rgba(120, 96, 70, 0.34), transparent 60%),
-  radial-gradient(90% 70% at 12% 78%, rgba(60, 74, 96, 0.30), transparent 65%),
-  linear-gradient(180deg, #1b1712 0%, #100f0f 55%, #0a0b0e 100%); }
+  radial-gradient(70% 60% at 6% 30%, rgba(255, 196, 130, 0.42), transparent 62%),
+  linear-gradient(115deg, transparent 0 44%, rgba(255, 214, 160, 0.13) 44% 58%, transparent 58%),
+  radial-gradient(120% 90% at 70% 20%, rgba(150, 140, 120, 0.30), transparent 70%),
+  linear-gradient(180deg, #5d564c 0%, #423d36 55%, #2b2925 100%); }
 #camera, #photo { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
 body.camera #camera, body.photo #photo { display: block; }
 #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
@@ -48,9 +49,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #adjust { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
 #adjust[hidden] { display: none; }
 #adjust-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-#adjust-poly { fill: rgba(103, 201, 255, 0.14); stroke: #67c9ff; stroke-width: 2.5; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(80, 185, 255, 0.9)); }
+#adjust-poly { fill: rgba(116, 230, 242, 0.14); stroke: #74e6f2; stroke-width: 2.5; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(90, 225, 240, 0.9)); }
 .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; pointer-events: auto; touch-action: none; cursor: grab;
-  background: radial-gradient(circle, #fff 0 5px, rgba(103, 201, 255, 0.35) 6px 100%); border: 2px solid #67c9ff; box-shadow: 0 0 12px rgba(80, 185, 255, 0.8); }
+  background: radial-gradient(circle, #fff 0 5px, rgba(116, 230, 242, 0.35) 6px 100%); border: 2px solid #74e6f2; box-shadow: 0 0 12px rgba(90, 225, 240, 0.8); }
 #adjust-bar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
   width: min(560px, calc(100% - 24px)); padding: 10px 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--edge); backdrop-filter: blur(10px); pointer-events: auto; }
 #adjust-bar span { flex: 1 1 200px; font-weight: 600; }

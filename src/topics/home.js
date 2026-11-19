@@ -84,7 +84,7 @@ export class Home {
     if (id === 'sixmwt') {
       d.beginPath(); d.moveTo(x + 30, y + h - 26); d.lineTo(x + w - 30, y + h - 26); d.stroke();
       for (let i = 0; i <= 10; i++) { const tx = x + 30 + (w - 60) * i / 10; d.beginPath(); d.moveTo(tx, y + h - 34); d.lineTo(tx, y + h - 18); d.stroke(); }
-      d.fillStyle = C.amber;
+      d.fillStyle = C.line;
       for (const cx of [x + 10, x + w - 10]) { d.beginPath(); d.moveTo(cx, y + h - 54); d.lineTo(cx + 13, y + h - 12); d.lineTo(cx - 13, y + h - 12); d.closePath(); d.fill(); }
       d.strokeStyle = C.cyan; d.setLineDash([2, 12]);
       d.beginPath(); d.moveTo(x + 44, y + 26); d.lineTo(x + w - 44, y + 26); d.stroke();
@@ -100,7 +100,7 @@ export class Home {
       const n = 9, bw = (w - 16) / n - 8;
       for (let i = 0; i < n; i++) {
         const bh = 12 + (h - 16) * (i / (n - 1));
-        d.fillStyle = i < 4 ? C.cyan : i < 7 ? C.amber : C.red;
+        d.fillStyle = i < 4 ? C.cyan : i < 7 ? C.amber : C.line;
         d.fillRect(x + 8 + i * (bw + 8), y + h - bh, bw, bh);
       }
     }

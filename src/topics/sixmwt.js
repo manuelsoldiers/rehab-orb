@@ -277,7 +277,7 @@ export class SixMWT {
     d.lineWidth = 3;
     for (let i = 0; i <= 10; i++) { const x = x0 + i * 3 * m; d.beginPath(); d.moveTo(x, yA + 12); d.lineTo(x, yB - 12); d.stroke(); }
     for (const x of [x0 - 34, x1 + 34]) {             // cones
-      d.fillStyle = kit.isHover('item:cones') ? C.cyan : C.amber;
+      d.fillStyle = kit.isHover('item:cones') ? C.cyan : C.line;
       d.beginPath(); d.moveTo(x, yA - 4); d.lineTo(x + 20, yB + 4); d.lineTo(x - 20, yB + 4); d.closePath(); d.fill();
     }
     kit.region('item:course', x0 - 60, 214, x1 - x0 + 120, 150);
@@ -296,9 +296,9 @@ export class SixMWT {
     cues.forEach((q) => {
       const idx = SIXMWT.cues.indexOf(q), x = tx(q.t), on = kit.isHover(`cue:${idx}`);
       if (on) hot = q;
-      d.fillStyle = on ? C.amber : C.ink;
+      d.fillStyle = on ? C.cyan : C.ink;
       d.beginPath(); d.arc(x, ty, on ? 14 : 10, 0, 7); d.fill();
-      kit.text(c, `${q.t / 60}′`, x, ty + 40, { size: 22, color: on ? C.amber : C.dim, align: 'center', weight: on ? 700 : 500 });
+      kit.text(c, `${q.t / 60}′`, x, ty + 40, { size: 22, color: on ? C.cyan : C.dim, align: 'center', weight: on ? 700 : 500 });
     });
     kit.region('cue', x0 + 60, ty - 34, x1 - x0, 84, {
       resolve: (px) => {
@@ -347,12 +347,12 @@ export class SixMWT {
     });
     const ymax = niceMax(Math.max(300, lapsM + 90), 120);
     const ch = kit.chart({
-      x: 130, y: 214, w: 1090, h: 300, xmin: 0, xmax: 360, ymin: 0, ymax,
+      x: 130, y: 214, w: 1060, h: 300, xmin: 0, xmax: 360, ymin: 0, ymax,
       xticks: [1, 2, 3, 4, 5, 6].map((mn) => ({ v: mn * 60, label: `${mn}′` })),
       yticks: [0, ymax / 2, ymax].map((v) => ({ v, label: `${v} m` })),
     });
     this.plotWalk(kit, ch, this.t, false);
-    d.strokeStyle = C.amber; d.lineWidth = 3;
+    d.strokeStyle = C.cyan; d.lineWidth = 2;
     d.beginPath(); d.moveTo(ch.sx(this.t), ch.y); d.lineTo(ch.sx(this.t), ch.y + ch.h); d.stroke();
 
     if (final) {
@@ -371,7 +371,7 @@ export class SixMWT {
         kit.text(c, `“${txt}”`, PAD, 632, { size: 27, weight: 600 });
       }
       kit.chips(668, 68, [
-        { label: '+1 lap  ·  60 m', id: 'lap', flex: 3, size: 30, accent: C.amber },
+        { label: '+1 lap  ·  60 m', id: 'lap', flex: 3, size: 30, accent: C.cyan },
         { label: 'Undo', id: 'undo' },
         { label: 'Stop test', id: 'stop', flex: 1.3 },
       ]);
@@ -386,7 +386,8 @@ export class SixMWT {
     if (withEnd) pts.push({ t: this.total, m: this.distance });
     d.save();
     d.beginPath(); d.rect(ch.x - 14, ch.y - 14, ch.w + 28, ch.h + 28); d.clip();
-    d.strokeStyle = C.ink; d.lineWidth = 4; d.lineJoin = 'round'; d.lineCap = 'round';
+    d.strokeStyle = C.line; d.lineWidth = 4; d.lineJoin = 'round'; d.lineCap = 'round';
+    d.shadowColor = 'rgba(255, 150, 100, 0.55)'; d.shadowBlur = 10;
     d.beginPath();
     pts.forEach((p, i) => (i ? d.lineTo(ch.sx(p.t), ch.sy(p.m)) : d.moveTo(ch.sx(p.t), ch.sy(p.m))));
     d.stroke();
@@ -396,7 +397,7 @@ export class SixMWT {
       d.beginPath(); d.moveTo(ch.sx(last.t), ch.sy(last.m)); d.lineTo(ch.sx(until), ch.sy(last.m)); d.stroke();
       d.setLineDash([]); d.globalAlpha = 1;
     }
-    d.fillStyle = C.ink;
+    d.fillStyle = C.line;
     pts.slice(1).forEach((p) => { d.beginPath(); d.arc(ch.sx(p.t), ch.sy(p.m), 7, 0, 7); d.fill(); });
     d.restore();
     return pts;
@@ -432,13 +433,13 @@ export class SixMWT {
     const xticks = [];
     for (let v = Math.ceil(xmin / stepT) * stepT; v <= xmax + 0.01; v += stepT) if (v > xmin + 1) xticks.push({ v, label: fmtElapsed(v) });
     const ch = kit.chart({
-      x: 130, y: 214, w: 1090, h: 300, xmin, xmax, ymin: 0, ymax, xticks,
+      x: 130, y: 214, w: 1060, h: 300, xmin, xmax, ymin: 0, ymax, xticks,
       yticks: [0, ymax / 2, ymax].map((v) => ({ v, label: `${v} m` })),
     });
     if (pred) {
-      d.save(); d.strokeStyle = C.amber; d.lineWidth = 3; d.setLineDash([14, 10]);
+      d.save(); d.strokeStyle = C.cyan; d.lineWidth = 2.5; d.setLineDash([14, 10]);
       d.beginPath(); d.moveTo(ch.x, ch.sy(pred)); d.lineTo(ch.x + ch.w, ch.sy(pred)); d.stroke(); d.restore();
-      kit.text(c, `predicted ${pred} m`, ch.x + ch.w - 6, ch.sy(pred) - 10, { size: 21, color: C.amber, align: 'right', weight: 600 });
+      kit.text(c, `predicted ${pred} m`, ch.x + ch.w - 6, ch.sy(pred) - 10, { size: 21, color: C.cyan, align: 'right', weight: 600 });
     }
     const pts = this.plotWalk(kit, ch, T, true).slice(1);
     kit.region('laps', ch.x - 20, ch.y - 10, ch.w + 40, ch.h + 20, {
@@ -476,7 +477,7 @@ export class SixMWT {
       const bw = Math.min(120, (W - 2 * PAD) / splits.length - 14);
       splits.forEach((q, i) => {
         const bh = 14 + 68 * ((q.seconds - lo) / (maxS - lo || 1)), bx = PAD + i * (bw + 14), by = y + 134 - bh;
-        d.fillStyle = q.index === s.index ? C.amber : 'rgba(255,255,255,0.55)';
+        d.fillStyle = q.index === s.index ? C.line : 'rgba(255,255,255,0.55)';
         d.fillRect(bx, by, bw, bh);
         kit.text(c, `${Math.round(q.seconds)} s`, bx + bw / 2, y + 158, { size: 18, color: C.dim, align: 'center' });
       });
