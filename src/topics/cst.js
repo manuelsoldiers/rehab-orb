@@ -218,7 +218,7 @@ export class ChairStand {
     const { c, d } = kit, x0 = PAD, x1 = W - PAD, y = 250;
     kit.text(c, 'Time', x0, y - 16, { size: 21, color: C.dim, spacing: 2, upper: true });
     c.fillStyle = 'rgba(255,255,255,0.10)'; c.fillRect(x0, y, x1 - x0, 14);
-    d.fillStyle = C.amber; d.fillRect(x0, y, (x1 - x0) * Math.min(1, this.t / CST.duration), 14);
+    d.fillStyle = C.cyan; d.fillRect(x0, y, (x1 - x0) * Math.min(1, this.t / CST.duration), 14);
     kit.text(c, 'Full stands', x0, 340, { size: 21, color: C.dim, spacing: 2, upper: true });
     const cols = 12, bw = 78, gap = 20;
     for (let i = 0; i < Math.max(this.reps, cols); i++) {
@@ -240,17 +240,17 @@ export class ChairStand {
     const top = this.phase === 'ready' ? 232 : 250, h = this.phase === 'ready' ? 270 : 330;
     const ymax = Math.max(16, Math.ceil((this.reps + 2) / 4) * 4);
     const ch = kit.chart({
-      x: 110, y: top, w: 1110, h, xmin: 0, xmax: n, ymin: 0, ymax,
+      x: 110, y: top, w: 1080, h, xmin: 0, xmax: n, ymin: 0, ymax,
       xticks: [], yticks: [0, ymax / 4, ymax / 2, ymax * 0.75, ymax].map((v) => ({ v, label: String(v) })),
     });
     kit.text(c, 'Below-average cut-off (stands) by age', ch.x, top - 14, { size: 21, color: C.dim, spacing: 2, upper: true });
-    kit.text(c, '— men', ch.x + ch.w - 150, top - 14, { size: 22, weight: 700, color: C.ink, align: 'right' });
+    kit.text(c, '— men', ch.x + ch.w - 150, top - 14, { size: 22, weight: 700, color: C.line, align: 'right' });
     kit.text(c, '— women', ch.x + ch.w, top - 14, { size: 22, weight: 700, color: C.cyan, align: 'right' });
     const hov = kit.hover && kit.hover.id.startsWith('band:') ? Number(kit.hover.id.slice(5)) : -1;
     const mine = this.phase === 'result' ? cstBand(this.app.patient.age) : -1;
     CST.bands.forEach((b, i) => {
       const on = i === hov;
-      kit.text(c, `${b.from}–${b.to}`, ch.sx(i + 0.5), ch.y + ch.h + 32, { size: 22, color: on ? C.amber : i === mine ? C.text : C.dim, align: 'center', weight: on || i === mine ? 700 : 500 });
+      kit.text(c, `${b.from}–${b.to}`, ch.sx(i + 0.5), ch.y + ch.h + 32, { size: 22, color: on ? C.cyan : i === mine ? C.text : C.dim, align: 'center', weight: on || i === mine ? 700 : 500 });
     });
     const step = (key, color, off) => {
       d.strokeStyle = color; d.lineWidth = 5; d.lineJoin = 'round'; d.lineCap = 'round';
@@ -262,7 +262,7 @@ export class ChairStand {
       });
       d.stroke();
     };
-    step('m', C.ink, -3); step('f', C.cyan, 3);
+    step('m', C.line, -3); step('f', C.cyan, 3);
     kit.region('bands', ch.x, ch.y - 10, ch.w, ch.h + 50, {
       resolve: (px) => ({ id: `band:${Math.min(n - 1, Math.max(0, Math.floor((px - ch.x) / ch.w * n)))}`, kind: 'point' }),
     });

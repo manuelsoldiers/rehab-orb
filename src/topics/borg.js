@@ -117,7 +117,7 @@ export class Borg {
       d.fillStyle = rampColor(row.v); d.globalAlpha = sel || on ? 1 : 0.82;
       d.fillRect(bx, y + 7, len, rowH - 18); d.globalAlpha = 1;
       if (row.words) kit.text(c, row.words, bx + len + 16, y + 29, { size: 25, weight: sel ? 700 : 500, color: on || sel ? C.ink : C.text });
-      if (sel) { d.save(); d.translate(PAD - 2, y + rowH / 2 - 2); d.rotate(Math.PI / 4); d.fillStyle = C.amber; d.fillRect(-7, -7, 14, 14); d.restore(); }
+      if (sel) { d.save(); d.translate(PAD - 2, y + rowH / 2 - 2); d.rotate(Math.PI / 4); d.fillStyle = C.cyan; d.fillRect(-7, -7, 14, 14); d.restore(); }
       kit.region(id, PAD - 12, y, 760, rowH, { kind: 'point' });
     });
 

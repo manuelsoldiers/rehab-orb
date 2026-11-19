@@ -18,8 +18,8 @@ function makeLayer() {
   return { canvas, ctx, tex, mat, mesh };
 }
 
-// The hologram layer: fine scanlines that crawl upwards and a band of light that sweeps down now and
-// then, both masked by the card's own shape. It only adds light, so text underneath stays as it is.
+// The glass layer: the fine square grid etched in the pane, and a soft band of light that passes over
+// it now and then, both masked by the card's own shape. It only adds light, so text stays as it is.
 const HOLO_VERT = /* glsl */`
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -32,13 +32,37 @@ uniform vec2 uOffset;
 uniform float uTime;
 uniform float uOpacity;
 uniform float uRows;
+uniform float uCols;
 void main() {
-  float mask = texture2D(map, vUv * uRepeat + uOffset).a;
-  float scan = pow(0.5 + 0.5 * sin((vUv.y * uRows + uTime * 0.9) * 6.28318), 4.0);
-  float pos = 1.25 - fract(uTime * 0.085) * 1.5;                     // a band that travels top to bottom
-  float sweep = smoothstep(0.10, 0.0, abs(vUv.y - pos));
-  float a = mask * uOpacity * (0.045 + scan * 0.085 + sweep * 0.16);
-  gl_FragColor = vec4(vec3(0.38, 0.80, 1.0), a);
+  float mask = smoothstep(0.25, 0.42, texture2D(map, vUv * uRepeat + uOffset).a);   // the pane, not its glow
+  vec2 cell = fract(vec2(vUv.x * uCols, vUv.y * uRows));
+  vec2 fw = vec2(uCols, uRows) * fwidth(vUv);
+  vec2 l = 1.0 - smoothstep(vec2(0.0), fw * 1.2, min(cell, 1.0 - cell));
+  float grid = max(l.x, l.y);
+  float pos = 1.3 - fract(uTime * 0.06) * 1.6;                        // a soft band of light, diagonal
+  float sweep = smoothstep(0.16, 0.0, abs(vUv.y + vUv.x * 0.35 - pos));
+  float a = mask * uOpacity * (0.02 + grid * 0.10 + sweep * 0.07);
+  gl_FragColor = vec4(vec3(0.86, 1.0, 1.0), a);
+}`;
+
+// The data layer: like the chrome, plus a wipe from left to right, so a chart is drawn in as the
+// concept's line is (axes first, then the line growing).
+const DATA_FRAG = /* glsl */`
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 uRepeat;
+uniform vec2 uOffset;
+uniform float uOpacity;
+uniform float uWipe;
+void main() {
+  vec4 c = texture2D(map, vUv * uRepeat + uOffset);
+  float e = uWipe * 1.14 - 0.07;
+  float glowEdge = smoothstep(0.035, 0.0, abs(vUv.x - e)) * step(uWipe, 0.999);
+  c.a *= 1.0 - smoothstep(e - 0.03, e, vUv.x);
+  c.rgb += glowEdge * c.a * 0.6;                                     // the leading edge is a little brighter
+  gl_FragColor = vec4(c.rgb, c.a * uOpacity);
+  #include <colorspace_fragment>
 }`;
 
 // A world-anchored card. The view draws on two canvases (chrome + data); the panel shows the
@@ -54,12 +78,18 @@ export class Panel {
     this.data.mesh.position.z = 0.002;
     this.holoUniforms = {
       map: { value: this.chrome.tex }, uRepeat: { value: new THREE.Vector2(1, 1) }, uOffset: { value: new THREE.Vector2() },
-      uTime: { value: 0 }, uOpacity: { value: 0 }, uRows: { value: 60 },
+      uTime: { value: 0 }, uOpacity: { value: 0 }, uRows: { value: 60 }, uCols: { value: W / 13 },
     };
     this.holo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
       vertexShader: HOLO_VERT, fragmentShader: HOLO_FRAG, uniforms: this.holoUniforms,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
+    this.dataUniforms = {
+      map: { value: this.data.tex }, uRepeat: { value: this.holoUniforms.uRepeat.value }, uOffset: { value: this.holoUniforms.uOffset.value },
+      uOpacity: { value: 0 }, uWipe: { value: 0 },
+    };
+    this.data.mat = new THREE.ShaderMaterial({ vertexShader: HOLO_VERT, fragmentShader: DATA_FRAG, uniforms: this.dataUniforms, transparent: true, depthWrite: false });
+    this.data.mesh.material = this.data.mat;
     this.holo.position.z = 0.001; this.holo.renderOrder = 10.5;
     this.group.add(this.chrome.mesh, this.holo, this.data.mesh);
     this.group.visible = false;
@@ -184,7 +214,8 @@ export class Panel {
         out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor));
       }
     };
-    if (whole) { take(bright, max * 0.55); take(edge, max * 0.3); take(fill, max * 0.15); } else take(bright, max);
+    // Summoned, the card is outlined first: most of the swarm goes to its edges.
+    if (whole) { take(bright, max * 0.35); take(edge, max * 0.5); take(fill, max * 0.15); } else take(bright, max);
     return out;
   }
 
@@ -193,10 +224,11 @@ export class Panel {
     this.open = ease(this.open, this.holdOpen ? 0 : this.openTarget, this.openTarget ? 6 : 12);
     if (this.openTarget === 0 && this.open < 0.01) { this.open = 0; this.group.visible = false; }
     const want = this.holdData ? 0 : this.revealTarget;
-    this.reveal = ease(this.reveal, want, want > this.reveal ? 7 : 16);
-    const flicker = 0.972 + 0.028 * Math.sin(now * 19.0) * Math.sin(now * 6.1);   // a projection, not a sheet of glass
-    this.chrome.mat.opacity = this.open * flicker;
-    this.data.mat.opacity = this.open * this.reveal;
+    // Drawn in at an even pace (about 0.9 s across), taken away quickly.
+    this.reveal = want > this.reveal ? Math.min(want, this.reveal + dt / 0.9) : ease(this.reveal, want, 16);
+    this.chrome.mat.opacity = this.open;
+    this.dataUniforms.uOpacity.value = this.open * Math.min(1, this.reveal * 5);
+    this.dataUniforms.uWipe.value = this.reveal;
     this.holoUniforms.uTime.value = now;
     this.holoUniforms.uOpacity.value = this.open;
     this.group.scale.setScalar(0.94 + 0.06 * this.open);

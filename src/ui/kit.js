@@ -8,25 +8,31 @@ export const PAD = 48;
 export const INSET = 12;          // the card sits inside the canvas, so its glowing edge is not cut off
 
 export const C = {
-  // Hologram surfaces: you see the room through them. Text stays readable thanks to its own shadow.
-  card: 'rgba(6, 20, 38, 0.56)',
-  drawer: 'rgba(8, 26, 48, 0.56)',
-  edge: 'rgba(120, 205, 255, 0.62)',
-  glow: 'rgba(80, 185, 255, 0.60)',
-  tile: 'rgba(24, 62, 104, 0.36)',
-  pill: 'rgba(14, 42, 74, 0.52)',
-  pillEdge: 'rgba(140, 205, 255, 0.42)',
-  pillHover: 'rgba(40, 104, 168, 0.68)',
-  shadow: 'rgba(1, 8, 18, 0.85)',
-  text: '#f4f7fb',
-  dim: '#b3c3d8',
-  faint: '#8b9db6',
-  grid: 'rgba(170, 205, 240, 0.34)',
-  cyan: '#67c9ff',
-  amber: '#ffc552',
+  // Frosted glass, after the owner's concept video: a smoky grey-teal pane you see the room through,
+  // a thin double outline in teal, and two bars of cyan light on its top and bottom edges.
+  // Text stays readable thanks to its own soft shadow.
+  card: 'rgba(30, 58, 62, 0.46)',
+  drawer: 'rgba(30, 58, 62, 0.46)',
+  edge: 'rgba(120, 222, 232, 0.80)',
+  edgeInner: 'rgba(150, 232, 240, 0.34)',
+  glow: 'rgba(90, 225, 240, 0.70)',
+  tab: '#9ff6ff',
+  tile: 'rgba(56, 98, 104, 0.30)',
+  pill: 'rgba(26, 54, 58, 0.52)',
+  pillEdge: 'rgba(160, 230, 236, 0.46)',
+  pillHover: 'rgba(58, 118, 126, 0.66)',
+  shadow: 'rgba(2, 14, 18, 0.80)',
+  text: '#f6fafa',
+  dim: '#c6d6d8',
+  faint: '#9db1b4',
+  grid: 'rgba(255, 255, 255, 0.30)',
+  axis: '#ffffff',
+  cyan: '#74e6f2',           // accent: keywords, selection, the reference lines of a chart
+  line: '#ff9e6e',           // the data itself: the coral line of the concept
+  amber: '#ffc552',          // a result being entered or highlighted
   red: '#ff7062',
-  green: '#55e0a8',
-  ink: '#ffffff',
+  green: '#5fe6b4',
+  ink: '#ffffff',            // structural drawings on the data layer: a course, a chair, an axis
 };
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -58,6 +64,7 @@ export class Kit {
 
   text(ctx, s, x, y, o = {}) {
     const { size = 28, weight = 500, color = C.text, align = 'left', spacing = 0, upper = false } = o;
+    ctx.save();
     this.font(ctx, size, weight);
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
     ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
@@ -67,6 +74,7 @@ export class Kit {
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
     const w = ctx.measureText(str).width;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.restore();
     return w;
   }
 
@@ -96,13 +104,33 @@ export class Kit {
   }
 
   // ---- surfaces ---------------------------------------------------------
-  card(y0, y1, fill = C.card) {
-    const c = this.c;
-    rr(c, INSET, y0, W - 2 * INSET, y1 - y0, 30);
+  // A pane of frosted glass: thin outer outline, a fainter one inside it, and bars of light centred on
+  // the top and bottom edges (tabs = [top width, bottom width] as fractions of the card, 0 for none).
+  card(y0, y1, fill = C.card, tabs = [0.36, 0.30]) {
+    const c = this.c, x = INSET, w = W - 2 * INSET, h = y1 - y0;
+    rr(c, x, y0, w, h, 44);
     c.fillStyle = fill; c.fill();
-    c.shadowColor = C.glow; c.shadowBlur = 16;                 // the edge is light, and it spills a little
-    c.strokeStyle = C.edge; c.lineWidth = 2.5; c.stroke();
-    c.shadowColor = 'transparent'; c.shadowBlur = 0;
+    c.save();
+    c.shadowColor = C.glow; c.shadowBlur = 12;                 // the edge is light, and it spills a little
+    c.strokeStyle = C.edge; c.lineWidth = 2; c.stroke();
+    c.restore();
+    rr(c, x + 13, y0 + 13, w - 26, h - 26, 32);
+    c.strokeStyle = C.edgeInner; c.lineWidth = 1.5; c.stroke();
+    tabs.forEach((frac, i) => {
+      if (!frac) return;
+      const tw = w * frac, tx = x + (w - tw) / 2, ty = i ? y1 : y0;
+      // The outline breaks where a bar sits on it, with a little air either side.
+      c.save(); c.globalCompositeOperation = 'destination-out';
+      c.fillRect(tx - 14, ty - 4, tw + 28, 8);
+      c.restore();
+      c.save();
+      c.shadowColor = C.glow; c.shadowBlur = 18;
+      c.fillStyle = C.tab;
+      c.beginPath();                                           // a long, slightly tapered bar
+      c.moveTo(tx, ty - 3); c.lineTo(tx + tw, ty - 3); c.lineTo(tx + tw - 8, ty + 4); c.lineTo(tx + 8, ty + 4); c.closePath();
+      c.fill();
+      c.restore();
+    });
   }
 
   // ---- interactive ------------------------------------------------------
@@ -168,7 +196,7 @@ export class Kit {
     const c = this.c, maxW = W - 2 * PAD;
     const bodyH = this.wrapHeight(body, maxW, 30);
     const h = 30 + 30 + 14 + bodyH + (src ? 36 : 4) + 18;
-    this.card(y, y + h, C.drawer);
+    this.card(y, y + h, C.drawer, [0, 0.16]);
     this.text(c, head, PAD, y + 48, { size: 22, weight: 700, color: C.dim, spacing: 2, upper: true });
     const end = this.wrap(c, body, PAD, y + 92, maxW, { size: 30 });
     if (src) this.text(c, src, PAD, end + 6, { size: 21, color: C.cyan });
@@ -182,22 +210,27 @@ export class Kit {
   footer(y, s) { this.text(this.c, s, PAD, y, { size: 21, color: C.faint }); }
 
   // ---- chart ------------------------------------------------------------
-  // Draws the dotted grid and tick labels on chrome and returns the scale functions.
+  // Dashed horizontal guides and tick labels on chrome; the two axes, white with an arrow, on the data
+  // layer, so they are drawn in with the line. Returns the scale functions.
   chart({ x, y, w, h, xmin, xmax, ymin, ymax, xticks = [], yticks = [] }) {
-    const c = this.c;
+    const c = this.c, d = this.d;
     const sx = (v) => x + (v - xmin) / (xmax - xmin) * w;
     const sy = (v) => y + h - (v - ymin) / (ymax - ymin) * h;
     c.save();
-    c.strokeStyle = C.grid; c.lineWidth = 2; c.setLineDash([3, 9]);
+    c.strokeStyle = C.grid; c.lineWidth = 1.5; c.setLineDash([4, 8]);
     for (const t of yticks) {
+      if (Math.abs(sy(t.v) - (y + h)) < 1) continue;           // the x axis is drawn there
       c.beginPath(); c.moveTo(x, sy(t.v)); c.lineTo(x + w, sy(t.v)); c.stroke();
     }
-    for (const t of xticks) {
-      c.beginPath(); c.moveTo(sx(t.v), y); c.lineTo(sx(t.v), y + h); c.stroke();
-    }
     c.restore();
-    for (const t of yticks) this.text(c, t.label, x - 12, sy(t.v) + 7, { size: 20, color: C.dim, align: 'right' });
-    for (const t of xticks) this.text(c, t.label, sx(t.v), y + h + 30, { size: 20, color: C.dim, align: 'center' });
+    d.save();
+    d.strokeStyle = C.axis; d.fillStyle = C.axis; d.lineWidth = 2.5; d.lineCap = 'round';
+    d.beginPath(); d.moveTo(x, y - 6); d.lineTo(x, y + h); d.lineTo(x + w + 18, y + h); d.stroke();
+    d.beginPath(); d.moveTo(x + w + 30, y + h); d.lineTo(x + w + 14, y + h - 8); d.lineTo(x + w + 14, y + h + 8); d.closePath(); d.fill();
+    for (const t of xticks) { d.beginPath(); d.moveTo(sx(t.v), y + h); d.lineTo(sx(t.v), y + h + 7); d.stroke(); }
+    d.restore();
+    for (const t of yticks) this.text(c, t.label, x - 14, sy(t.v) + 7, { size: 20, color: C.text, align: 'right' });
+    for (const t of xticks) this.text(c, t.label, sx(t.v), y + h + 32, { size: 20, color: C.text, align: 'center' });
     return { sx, sy, x, y, w, h };
   }
 
@@ -205,10 +238,12 @@ export class Kit {
   crosshair(px, py, top, bottom, label) {
     const d = this.d;
     d.save();
-    d.strokeStyle = C.amber; d.lineWidth = 2;
+    d.strokeStyle = C.cyan; d.lineWidth = 2;
     d.beginPath(); d.moveTo(px, top); d.lineTo(px, bottom); d.stroke();
     d.translate(px, py); d.rotate(Math.PI / 4);
-    d.fillStyle = C.amber; d.fillRect(-8, -8, 16, 16);
+    d.shadowColor = C.glow; d.shadowBlur = 10;
+    d.fillStyle = C.cyan; d.fillRect(-8, -8, 16, 16);
+    d.fillStyle = '#ffffff'; d.fillRect(-3, -3, 6, 6);
     d.restore();
     if (label) {
       this.font(d, 24, 700);
