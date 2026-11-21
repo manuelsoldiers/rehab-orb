@@ -20,7 +20,7 @@ const rad = THREE.MathUtils.degToRad;
 export class Stage {
   constructor(canvas) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));     // the quality level sets it again
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.xr.enabled = true;
     this.renderer.shadowMap.enabled = true;
@@ -33,6 +33,7 @@ export class Stage {
 
     this.orb = new Orb(ORB_R);
     this.panel = new Panel();
+    this.panel.setRenderer(this.renderer);
     this.swarm = new Particles();
     this.caption = new Caption();
     this.anchor = new THREE.Group();              // where the display was summoned, and how it faces the user
@@ -256,6 +257,45 @@ export class Stage {
     this.resize();
   }
 
+  // ---- quality ------------------------------------------------------------------
+  // Three levels, so a mid-range phone stays fluid. Nothing about how the app works changes, only how
+  // much it draws: screen resolution, particles, shadow detail and the orb's inner layers.
+  //   high   – desktop and recent phones
+  //   medium – phones start here
+  //   low    – if frames still take too long
+  setQuality(level) {
+    const Q = {
+      high:   { ratio: 2, xrScale: 1.0, particles: 4200, shadows: 'full', orb: 2 },
+      medium: { ratio: 1.5, xrScale: 0.85, particles: 2600, shadows: 'light', orb: 1 },
+      low:    { ratio: 1, xrScale: 0.7, particles: 1500, shadows: 'none', orb: 1 },
+    }[level];
+    if (!Q) return;
+    this.quality = level; this.Q = Q;
+    if (!this.renderer.xr.isPresenting) this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Q.ratio));
+    this.swarm.setCount(Q.particles);
+    this.ground.setShadows(Q.shadows, this.renderer);
+    this.orb.setDetail(Q.orb);
+    this._slow = 0; this._watch = 0;
+    this.onQuality?.(level);
+  }
+
+  // Fed with the real time between frames. A frame is slow if it takes clearly longer than the
+  // device's own pace (AR on many phones runs at 30 frames a second by design, so that pace is
+  // measured, not assumed) or longer than 1/24 s. If most of two seconds is slow frames, step down one
+  // level (never back up on its own: no flicker between levels). Single long frames (shaders
+  // compiling, the tab coming back) and the first seconds are not counted.
+  watchFrame(real) {
+    if (this.quality === 'low' || this.qualityPinned || this.time < 3 || real > 0.25) return;
+    this._pace = Math.min((this._pace || real) * 1.01, Math.max(real, 1 / 120));   // the fastest recent frames
+    const slow = real > Math.max(1 / 40, this._pace * 1.4) || real > 1 / 24;
+    this._watch = (this._watch || 0) + real;
+    this._slow = (this._slow || 0) + (slow ? real : 0);
+    if (this._watch < 2) return;
+    const slowShare = this._slow / this._watch;
+    this._watch = 0; this._slow = 0;
+    if (slowShare > 0.6) this.setQuality(this.quality === 'high' ? 'medium' : 'low');
+  }
+
   // ---- the floor ----------------------------------------------------------------
   // Without tracking the floor is assumed EYE metres below the phone. In AR it starts from the
   // session's floor (or the same guess) and is then measured: whenever the device looks at a level
@@ -373,6 +413,8 @@ export class Stage {
     this.panel.update(dt, this.time);
     this._hover();
     this._updateGround();
+    this._frames = (this._frames || 0) + 1;
+    if (this._frames % (this.ground.shadowEvery || 1) === 0) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
   }
 }

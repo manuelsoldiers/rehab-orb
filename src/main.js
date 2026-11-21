@@ -11,6 +11,13 @@ const voice = new Voice();
 const brain = new Brain({ voice, stage, speed: Math.max(1, Number(params.get('speed')) || 1) });
 if (params.has('mute')) voice.muted = true;
 
+// Quality: ?quality=high|medium|low pins it; otherwise phones start at medium, other devices at high,
+// and the app steps down by itself if frames run slow.
+const phone = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const pinnedQuality = ['high', 'medium', 'low'].includes(params.get('quality')) ? params.get('quality') : null;
+stage.setQuality(pinnedQuality || (phone ? 'medium' : 'high'));
+stage.qualityPinned = !!pinnedQuality;
+
 // ---- wiring ---------------------------------------------------------------
 stage.onPress = (target) => brain.press(target);
 stage.onHover = (target) => brain.hover(target);
@@ -82,6 +89,7 @@ function begin() {
 }
 
 async function enterAR() {
+  stage.renderer.xr.setFramebufferScaleFactor(stage.Q.xrScale);    // fewer pixels per frame on slower devices
   const session = await navigator.xr.requestSession('immersive-ar', {
     optionalFeatures: ['local-floor', 'hand-tracking', 'dom-overlay', 'hit-test'],
     domOverlay: { root: $('hud') },
@@ -181,6 +189,7 @@ stage.renderer.setAnimationLoop(() => {
   const now = performance.now(), real = (now - prev) / 1000;
   prev = now;
   keepAwake(!!brain.active?.busy);
+  stage.watchFrame(real);
   brain.tick(real);                    // test clocks follow the wall clock, however slow the frames are
   stage.update(Math.min(real, 0.1));   // animation is clamped so a hiccup does not make things jump
 });

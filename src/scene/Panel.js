@@ -102,6 +102,26 @@ void main() {
   gl_FragColor = vec4(1.0);                 // only depth matters; the pass still expects a colour
 }`;
 
+// Where the particles should land is read from the card itself. Reading a full-size canvas back from
+// the GPU stalls a phone, so every drawing call is also made, at a quarter of the size, on a small
+// canvas kept in ordinary memory, and that is what is read.
+const INK_W = 320, INK_K = INK_W / W;
+function mirrored(primary, mirror) {
+  return new Proxy(primary, {
+    get(target, key) {
+      const v = target[key];
+      if (typeof v !== 'function') return v;
+      return (...args) => { mirror[key](...args); return v.apply(target, args); };
+    },
+    set(target, key, value) { target[key] = value; mirror[key] = value; return true; },
+  });
+}
+function inkCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = INK_W; canvas.height = Math.ceil(MAX_H * INK_K);
+  return canvas.getContext('2d', { willReadFrequently: true });
+}
+
 // A world-anchored card. The view draws on two canvases (chrome + data); the panel shows the
 // top `height` pixels of each, anchored at its top-left corner so drawers grow downwards.
 export class Panel {
@@ -159,9 +179,13 @@ export class Panel {
     this._lastDraw = 0;
     this._applyHeight(800);
 
-    this._scratch = document.createElement('canvas');
-    this._scratch.width = 320;
-    this._sctx = this._scratch.getContext('2d', { willReadFrequently: true });
+    // Quarter-size copies of the chrome and data drawings (see mirrored()), and a canvas to combine them.
+    this._inkC = inkCanvas(); this._inkD = inkCanvas();
+    this._chromeCtx = mirrored(this.chrome.ctx, this._inkC);
+    this._dataCtx = mirrored(this.data.ctx, this._inkD);
+    this._sctx = inkCanvas();
+    this._m = new THREE.Matrix4();
+    this._plateKey = '';
   }
 
   _applyHeight(h) {
@@ -183,6 +207,8 @@ export class Panel {
 
   get physicalHeight() { return this.height * PX; }
 
+  setRenderer(renderer) { this.renderer = renderer; }   // (kept for callers; nothing needs it now)
+
   setView(view) {
     this.view = view; this.hover = null;
     this.redraw();
@@ -198,10 +224,13 @@ export class Panel {
     if (!this.view) return;
     const h = Math.min(MAX_H, Math.round(this.view.height(this.kit)));
     if (h !== this.height) this._applyHeight(h);
-    this.kit.begin(this.chrome.ctx, this.data.ctx, h, this.hover, this.plate.ctx);
+    for (const ink of [this._inkC, this._inkD]) ink.setTransform(INK_K, 0, 0, INK_K, 0, 0);
+    this.kit.begin(this._chromeCtx, this._dataCtx, h, this.hover, this.plate.ctx);
     this.view.draw(this.kit);
     this.chrome.tex.needsUpdate = true;
-    this.plate.tex.needsUpdate = true;
+    // The back face only changes when the cards change shape: upload it only then.
+    const key = `${h}|${this.kit.cards.join(';')}`;
+    if (key !== this._plateKey) { this._plateKey = key; this.plate.tex.needsUpdate = true; }
     this.data.tex.needsUpdate = true;
     this.dirty = false;
   }
@@ -244,12 +273,13 @@ export class Panel {
   //   whole = false: the lit pixels of the data layer (a chart re-forming).
   //   whole = true:  the card itself, as outlines, text and chart (the display being summoned).
   sampleInk(ancestor, max = 900, whole = false) {
-    const sw = 320, sh = Math.max(1, Math.round(this.height * sw / W)), g = this._sctx;
-    this._scratch.height = sh;
-    g.clearRect(0, 0, sw, sh);
-    if (whole) g.drawImage(this.chrome.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
-    g.drawImage(this.data.canvas, 0, 0, W, this.height, 0, 0, sw, sh);
-    const px = g.getImageData(0, 0, sw, sh).data;
+    const sw = 320, sh = Math.max(1, Math.round(this.height * sw / W));
+    const px = this._readInk(sw, sh, whole);
+    if (!px) return [];
+    this.group.updateWorldMatrix(true, false);
+    ancestor.updateWorldMatrix(true, false);
+    const toAncestor = this._m.copy(ancestor.matrixWorld).invert().multiply(this.group.matrixWorld);
+    const zInk = whole ? 0.004 : Z_DATA;
     const alpha = (n) => px[n * 4 + 3];
     const bright = [], edge = [], fill = [];
     for (let n = 0, total = sw * sh; n < total; n++) {
@@ -266,12 +296,21 @@ export class Panel {
       const step = Math.max(1, list.length / count);
       for (let f = 0; f < list.length; f += step) {
         const n = list[f | 0];
-        out.push(this.toLocal(((n % sw) + Math.random()) * W / sw, (Math.floor(n / sw) + Math.random()) * W / sw, ancestor, undefined, whole ? 0.004 : Z_DATA));
+        out.push(new THREE.Vector3(((n % sw) + Math.random()) * W / sw * PX, -(Math.floor(n / sw) + Math.random()) * W / sw * PX, zInk).applyMatrix4(toAncestor));
       }
     };
     // Summoned, the card is outlined first: most of the swarm goes to its edges.
     if (whole) { take(bright, max * 0.35); take(edge, max * 0.5); take(fill, max * 0.15); } else take(bright, max);
     return out;
+  }
+
+  // The card at quarter size, from the mirrors: RGBA bytes, row 0 at the top.
+  _readInk(sw, sh, whole) {
+    const g = this._sctx;
+    g.clearRect(0, 0, sw, sh);
+    if (whole) g.drawImage(this._inkC.canvas, 0, 0, sw, sh, 0, 0, sw, sh);
+    g.drawImage(this._inkD.canvas, 0, 0, sw, sh, 0, 0, sw, sh);
+    return g.getImageData(0, 0, sw, sh).data;
   }
 
   update(dt, now) {

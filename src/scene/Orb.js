@@ -289,6 +289,9 @@ export class Orb {
     this._ca = new THREE.Color(); this._cb = new THREE.Color(); this._cc = new THREE.Color();
   }
 
+  // Detail: 2 = every layer; 1 = without the far side of the skin and the inner threads.
+  setDetail(level) { this.far.visible = level > 1; this.threadsInner.visible = level > 1; }
+
   setState(state) {
     if (!PALETTE[state] || state === this.state) return;
     this.state = state; this._target = PALETTE[state];

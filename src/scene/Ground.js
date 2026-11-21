@@ -58,7 +58,7 @@ export class Ground {
   constructor(scene) {
     this.y = -1.35;                  // floor height; the stage sets it (estimated, or measured in AR)
     this.floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40),
+      new THREE.PlaneGeometry(SPAN * 2.4, SPAN * 2.4),          // only where shadows can fall: it is shaded per pixel
       new THREE.ShadowMaterial({ color: 0x06121a, opacity: 0.66, transparent: true, depthWrite: false }),
     );
     this.floor.rotation.x = -Math.PI / 2;
@@ -109,6 +109,22 @@ export class Ground {
     this._v = new THREE.Vector3();
     this._dir = new THREE.Vector3();
     this.yaw = 0;
+  }
+
+  // Quality: 'full' shadows (2048 map, every frame), 'light' (1024, every other frame), or 'none'
+  // (no shadow map; the cheap projected shades and pools stay, so objects still sit on the floor).
+  setShadows(mode, renderer) {
+    const on = mode !== 'none', size = mode === 'full' ? 2048 : 1024;
+    this.light.castShadow = on;
+    this.floor.visible = on;
+    if (this.light.shadow.mapSize.x !== size) {
+      this.light.shadow.mapSize.set(size, size);
+      if (this.light.shadow.map) { this.light.shadow.map.dispose(); this.light.shadow.map = null; }
+    }
+    this.light.shadow.radius = mode === 'full' ? 4 : 2;
+    this.shadowEvery = mode === 'full' ? 1 : 2;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
   }
 
   // The display's texture and its visible part (shared with Panel), for the glass shade.

@@ -49,7 +49,8 @@ const ZERO = new THREE.Vector3();
 
 export class Particles {
   constructor(count = 4200) {
-    this.count = count;
+    this.max = count;
+    this.count = count;              // how many fly (≤ max); lowered on slower devices
     const g = new THREE.BufferGeometry();
     this.start = new Float32Array(count * 3);
     this.end = new Float32Array(count * 3);
@@ -80,6 +81,8 @@ export class Particles {
     this.t = 1; this.duration = 1; this.fadeOut = 0.35; this.active = false;
     this.liveA = null; this.liveB = null;
   }
+
+  setCount(n) { this.count = Math.max(200, Math.min(this.max, n | 0)); this.points.geometry.setDrawRange(0, this.count); }
 
   // starts / ends: arrays of THREE.Vector3 in the parent's space.
   // from / to: a moving THREE.Vector3 (the orb). When given, that side is a small cloud around it.
