@@ -44,7 +44,7 @@ Sullo schermo iniziale scegli come usarla:
 
 | Modo | Dove funziona | Come si punta |
 |---|---|---|
-| **Enter AR** | Browser del Meta Quest; Chrome su Android con ARCore. Serve HTTPS. | Raggio del controller o della mano; sul telefono, un tocco |
+| **Enter AR** | Browser del Meta Quest; Chrome su Android con ARCore; su iPhone apre l'App Clip Needle Go (vedi sotto). Serve HTTPS. | Raggio del controller o della mano; sul telefono, un tocco |
 | **Camera view** | Telefoni senza WebXR (per esempio iPhone): fotocamera posteriore come sfondo e giroscopio per guardarsi intorno | Tocco |
 | **Preview on this screen** | Qualsiasi browser recente | Mouse o tocco. Trascina per guardarti intorno, rotella o due dita per lo zoom, **WASD o frecce per camminare** (c'è una griglia leggera sul pavimento per leggere le distanze) |
 
@@ -53,6 +53,7 @@ Per provarla su un visore o un telefono la pagina deve essere pubblicata su HTTP
 ### Dove si può girare intorno agli oggetti
 
 - **Enter AR** (Android con Chrome, Meta Quest): sì. Il dispositivo sa dove ti trovi e dove guardi, e l'app misura l'altezza vera del pavimento appena lo inquadri.
+- **iPhone, con il pulsante AR** (in Safari): sì, tramite **Needle Go**, un'App Clip gratuita di Needle Tools (un'azienda terza). Non si installa nulla: iOS mostra una scheda, tocchi *Apri*, e la pagina si riapre lì con il tracciamento di Apple (ARKit); l'AR parte da sola. Se la scheda non compare al primo tocco, tocca di nuovo. La pagina deve essere raggiungibile senza login: l'App Clip non ha la sessione di Safari. La pagina gira nel browser di un'azienda terza, quindi prima di usarla con i pazienti vanno lette le condizioni di Needle (l'app non invia dati dei pazienti a nessuno). Il link e il meta tag seguono il codice del motore di Needle (`@needle-tools/engine`); il loro sito non era raggiungibile da qui per verificarlo sulla documentazione.
 - **Camera view** (anche iPhone): no. Il browser sa solo come ruota il telefono, non come ti sposti: gli oggetti restano fermi mentre ti guardi intorno, ma se cammini vengono con te. Il pavimento è stimato 1,35 m sotto il telefono, quindi le ombre cadono nel punto giusto se tieni il telefono all'altezza del petto. Su iPhone, Safari non offre l'AR con tracciamento della posizione (WebXR): per averla servirebbe un'app nativa.
 - **Preview on this screen**: sì, camminando con WASD o le frecce.
 

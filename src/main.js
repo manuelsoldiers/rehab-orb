@@ -73,7 +73,7 @@ function setMode(mode) {
   document.body.classList.toggle('preview', mode === 'preview');
   document.body.classList.toggle('camera', mode === 'camera');
   $('mode').textContent = mode === 'xr' ? 'AR' : mode;
-  $('btn-ar').textContent = mode === 'xr' ? 'Exit AR' : 'Enter AR';
+  $('btn-ar').textContent = mode === 'xr' ? 'Exit AR' : (iosHandoff ? 'AR' : 'Enter AR');
   stage.resize();
 }
 
@@ -88,7 +88,40 @@ function begin() {
   voice.say('Tap anywhere and I will open the display there. Or just ask me for a test.');
 }
 
+// ---- AR on iPhone ---------------------------------------------------------------
+// Safari on iPhone has no WebXR AR. Needle Go, a free App Clip by Needle Tools (a third party), opens
+// a web page in its own browser with WebXR on top of Apple's ARKit. On iPhone the AR button sends the
+// page there; inside the App Clip AR starts by itself. The launch URL, the meta tag and the
+// 'sessiongranted' hand-over follow Needle's own engine (@needle-tools/engine, NeedleXRSession).
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const inAppClip = /NeedleAppClip\//i.test(navigator.userAgent);
+const appClipLaunchUrl = () => {
+  const url = new URL('https://appclip.apple.com/id?p=tools.needle.launch-app.Clip');
+  url.searchParams.set('url', location.href);
+  return url.toString();
+};
+if (isIOS && !inAppClip) {
+  // Lets iOS fetch the App Clip card ahead of the first tap.
+  const meta = document.createElement('meta');
+  meta.name = 'apple-itunes-app';
+  meta.content = 'app-id=6757205152, app-clip-bundle-id=tools.needle.launch-app.Clip, app-clip-display=card';
+  document.head.appendChild(meta);
+}
+// Inside the App Clip the AR session is already granted: take it as soon as it is offered. The
+// listener goes on now, at start-up; waiting for anything first can miss the event.
+if (inAppClip && navigator.xr) navigator.xr.addEventListener('sessiongranted', () => enterAR().catch(fail('AR')), { once: true });
+// The App Clip draws the canvas at its own pixel size; give it the size the quality level asks for.
+// Checked every frame (cheap): during an AR session the page's own animation frames may not run.
+function fitAppClipCanvas() {
+  if (!inAppClip || !stage.renderer.xr.isPresenting) return;
+  const canvas = stage.renderer.domElement, r = Math.min(2, devicePixelRatio || 1) * stage.Q.xrScale;
+  const w = Math.floor(innerWidth * r), h = Math.floor(innerHeight * r);
+  if (Math.abs(canvas.width - w) > 2 || Math.abs(canvas.height - h) > 2) { canvas.width = w; canvas.height = h; }
+}
+let iosHandoff = false;                       // true when the AR buttons lead to the App Clip
+
 async function enterAR() {
+  if (iosHandoff) { location.href = appClipLaunchUrl(); return; }   // inside the tap: iOS shows the card only then
   stage.renderer.xr.setFramebufferScaleFactor(stage.Q.xrScale);    // fewer pixels per frame on slower devices
   const session = await navigator.xr.requestSession('immersive-ar', {
     optionalFeatures: ['local-floor', 'hand-tracking', 'dom-overlay', 'hit-test'],
@@ -145,10 +178,13 @@ async function detect() {
   let ar = false;
   try { ar = !!navigator.xr && await navigator.xr.isSessionSupported('immersive-ar'); } catch { ar = false; }
   const cam = !!navigator.mediaDevices?.getUserMedia && isSecureContext;
-  for (const id of ['go-ar', 'btn-ar']) $(id).hidden = !ar;
+  iosHandoff = !ar && isIOS && !inAppClip;
+  for (const id of ['go-ar', 'btn-ar']) $(id).hidden = !(ar || iosHandoff);
+  if (iosHandoff) { $('go-ar').textContent = 'Enter AR (opens Needle Go)'; $('btn-ar').textContent = 'AR'; }
   for (const id of ['go-camera', 'btn-camera']) $(id).hidden = !cam || ar;
   const lines = [];
-  lines.push(ar ? 'This device supports WebXR AR.' : 'WebXR AR is not available here (it needs a Meta Quest browser or Chrome on Android, over HTTPS).');
+  if (iosHandoff) lines.push('On iPhone, AR runs in Needle Go, a free App Clip by Needle Tools (a third party): nothing to install; iOS shows a card, tap Open. If the card does not appear, tap again.');
+  else lines.push(ar ? 'This device supports WebXR AR.' : 'WebXR AR is not available here (it needs a Meta Quest browser or Chrome on Android, over HTTPS).');
   if (!voice.sttSupported) lines.push('Speech recognition is not available in this browser: use the buttons or type.');
   if (!voice.ttsSupported) lines.push('Speech synthesis is not available: the orb will answer with captions only.');
   $('support').textContent = lines.join(' ');
@@ -189,6 +225,7 @@ stage.renderer.setAnimationLoop(() => {
   const now = performance.now(), real = (now - prev) / 1000;
   prev = now;
   keepAwake(!!brain.active?.busy);
+  fitAppClipCanvas();
   stage.watchFrame(real);
   brain.tick(real);                    // test clocks follow the wall clock, however slow the frames are
   stage.update(Math.min(real, 0.1));   // animation is clamped so a hiccup does not make things jump
