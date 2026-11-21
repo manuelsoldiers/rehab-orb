@@ -85,6 +85,18 @@ Per provarla su un visore o un telefono la pagina deve essere pubblicata su HTTP
 - **Camera view** (anche iPhone): no. Il browser sa solo come ruota il telefono, non come ti sposti: gli oggetti restano fermi mentre ti guardi intorno, ma se cammini vengono con te. Il pavimento è stimato 1,35 m sotto il telefono, quindi le ombre cadono nel punto giusto se tieni il telefono all'altezza del petto. Su iPhone, Safari non offre l'AR con tracciamento della posizione (WebXR): per averla servirebbe un'app nativa.
 - **Preview on this screen**: sì, camminando con WASD o le frecce.
 
+### Prestazioni
+
+L'app ha tre livelli di qualità. Cambia solo quanto disegna, non come funziona:
+
+| Livello | Risoluzione | Particelle | Ombre | Sfera |
+|---|---|---|---|---|
+| **high** (computer) | piena (fino a 2×) | 4200 | dettagliate, a ogni fotogramma | tutti gli strati |
+| **medium** (telefoni, all'avvio) | 1,5× · in AR 85% | 2600 | più leggere, un fotogramma sì e uno no | senza gli strati interni |
+| **low** | 1× · in AR 70% | 1500 | solo le ombre proiettate leggere (niente mappa d'ombra) | senza gli strati interni |
+
+Se per due secondi i fotogrammi sono troppo lenti, l'app scende di un livello da sola. Il riferimento è il ritmo del dispositivo stesso (molti telefoni in AR vanno a 30 fotogrammi al secondo per natura) oppure i 24 fotogrammi al secondo. Per fissare un livello: aggiungi `?quality=high`, `?quality=medium` o `?quality=low` all'indirizzo.
+
 ### Cosa dire (o scrivere nella casella in basso)
 
 - `six-minute walk test` · `chair stand` · `Borg scale` · `menu` · `close`
